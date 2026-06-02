@@ -230,6 +230,8 @@ This is useful for model training purposes, but for generation purposes we only 
 
 == Summary
 
+== Long Context Transformers
+
 = Attention Scaling
 
 == Insufficiency of Standard Softmax
@@ -237,15 +239,41 @@ This is useful for model training purposes, but for generation purposes we only 
 Consider the standard softmax function applied to a sequence of score vectors $s^((n)) in RR^n$ with uniformly bounded components $m <= s_j^((n)) <= M$ for $m, M in RR$. For a fixed $j$, 
 
 $
-    "softmax"(s)_j = e^(s_j) / (sumkn e^(s_k)) <= e^(M) / (n e^m) = e^(M - m)/n,
+    "softmax"(s^((n)))_j = e^(s_j) / (sumkn e^(s_k)) <= e^(M) / (n e^m) = e^(M - m)/n,
 $
 as well as
 $
-    "softmax"(s)_j >= e^(m - M)/n.
+    "softmax"(s^((n)))_j >= e^(m - M)/n.
 $
-Then, we must have that $"softmax"(s)_j -> 0$ as $n -> infinity$.
+Then, we have that $"softmax"(s^((n)))_j = Theta(1/n)$ for all $j$ and thus $norm("softmax"(s^((n))))_inf -> 0$ as $n -> inf$. 
+Heuristically, the entire softmax vector becomes diffuse and "true" attention, in the sense of assigning a non-vanishing proportion of mass to a distringuished set of coordinates, cannot emerge.
+Therefore, any nontrivial attention mechanism in the large-$n$ limit must be driven by score fluctuations whose scale grows with $n$, allowing certain coordinates to overcome the $Theta(n)$ growth of the softmax normalizing constant. Because attentions scores are usually designed to be probabilistically $O(1)$, this is naturally a problem when considering large-$n$ inputs.
 
-more TODO
+#theorem[
+    Let $cal(X) subset.eq RR^d$ be a finite set of token embeddings, and let $X^((n)) in cal(X)^n$ be a matrix of $n$ embeddings. 
+
+    Define query and key matrices $Q^((n)) = phi(X^((n))) in RR^(n times k), quad K^((n)) = kappa(X^((n))) in RR^(n times k),$
+    where $phi, kappa$ are continuous functions obtained as compositions of a finite number $L$ of layers of the following two types:
+    
+    1. A feedforward layer $F_l (Z)_i = f_l (Z_i)$ that is acts row-wise and is continuous,
+    2. Self-attention layer $G_l (Z)_i = sumjn a_(i j) v_l (Z_j)$, where $a_(i j) in [0, 1]$ are softmax-normalised attention coefficients and $v$ is a continuous feedforward network.
+
+    Define the score matrix $S^((n)) = Q^((n)) (K^((n)))^T in RR^(n times n)$ and row-wise softmax attention matrix $A^((n)) = "softmax"(S^((n)))$.
+
+    Then, $||A^((n))||_max -> 0$ as $n -> inf$, where $||A^((n))||_"max" = max_(i j) |a_(i j)|$.
+]
+
+#proof[
+    Since $cal(X) subset.eq RR^d$ is finite, both $cal(X)$ and its convex hull $"conv"(cal(X))$ are compact. Since all feedfoward operators $F_l$ and $v_l$ act row-wise and are continuous, they preserve compactness row-wise. Each output row of a self-attention layer is a convex combination of vectors in a compact set, hence remains in a compact set. By induction over $L$, the finite number of layers, all embeddings lie in a compact set, independent of $n$. In particular, there exists a compact set $C subset.eq RR^k$ such that all rows $Q_i^((n)), thin K_i^((n)) in C$. 
+    Hence, any score has the bound $|S^((n))_(i j)| <= M$, where $M > 0$. By a similar derivation as before, we obtain
+    $
+        e^(-2 M)/n <= A^((n))_(i j) <= e^(2 M) / n.
+    $
+    Since $M$ does not depend on $n$, $||A^((n))||_"max" -> 0$ as $n -> infinity$.
+]
+
+While a simplified model, this shows a different fundamental limitation of Transformers. For a fixed trained model, there is no architectural mechanism that guarantees stable, non-degenerate attention behaviour as the sequence length $n$ increases beyond the range seen during training.
+Although one might hope that the model could compensate by implicitly scaling scores with sequence length, the architecture does not provide a reliable way to represent or extrapolate $n$. Consequently, any implicit learned rescaling of query–key interactions remains uniformly bounded, and cannot in general counteract the linear growth of the softmax normalization as $n -> infinity$.
 
 == Scalable Softmax
 
