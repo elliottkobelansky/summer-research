@@ -25,13 +25,6 @@
 
 #let conf(doc) = {
 
-    set text(
-        font: "TeX Gyre Pagella",
-        size: 12pt
-    )
-    show math.equation: set text(font: "TeX Gyre Pagella Math")
-    show raw: set text(font: "TeX Gyre Pagella Math")
-
   // show link: set text(fill: gray)
   // show link: underline
 

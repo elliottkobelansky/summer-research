@@ -230,13 +230,19 @@ This is useful for model training purposes, but for generation purposes we only 
 
 == Summary
 
-== Long Context Transformers
+== Long-Context Transformers
+
+While the term "long" continuously changes meaning as advances are made in machine learning, long-context transformers are transformers that are designed to support a context length $n$ that is substantially longer than what is seen in common models. Many real-world tasks such as reasoning over long documents, codebases, or ANOTHER EXAMPLE require access to information that may be introduced thousands or even millions of tokens earlier, where simply truncating the context leads to severly degraded performance. Increasing context length effectively augments the models "memory", which allows for richer retrieval of relevant evidence and more coherent global reasoning. 
+
+It is important to distinguish between two types of long-context transformers. The first consists of models explicitly trained on long sequences, which attempt to internalize long-range dependencies during optimization. The second consists of models trained on shorter sequences but designed to generalize at inference time to longer sequences. There also exists hybrids of these two models, which might split training into $80%$ short sequences and $20%$ long sequences, for example.
+
+From a scaling perspective, there are many issues related to naively increasing context length that apply to both types of long-context transformers. First and foremost, attention grows quadratically in context length, since a vanilla attention matrix $A$ is of size $n times n$. Second, attention suffers from large-$n$ scaling issues inherent to the softmax function. The remainder of this report investigates the latter. In general, the results collected throught are moreso properties of the softmax function under specific inputs rather than anything regarding the underlying Transformer architechture or training, and thus we will not differentiate between the two types of long-context Transformers unless it is pertinent.
 
 = Attention Scaling
 
 == Insufficiency of Standard Softmax
 
-Consider the standard softmax function applied to a sequence of score vectors $s^((n)) in RR^n$ with uniformly bounded components $m <= s_j^((n)) <= M$ for $m, M in RR$. For a fixed $j$, 
+Consider the standard softmax function applied to a sequence of score vectors $(s^((n)))$ such that $s^((n)) in RR^n$ for all $n$ with uniformly bounded components $m <= s_j^((n)) <= M$ for $m, M in RR$. For a fixed $j$, 
 
 $
     "softmax"(s^((n)))_j = e^(s_j) / (sumkn e^(s_k)) <= e^(M) / (n e^m) = e^(M - m)/n,
@@ -273,17 +279,24 @@ Therefore, any nontrivial attention mechanism in the large-$n$ limit must be dri
 ]
 
 While a simplified model, this shows a different fundamental limitation of Transformers. For a fixed trained model, there is no architectural mechanism that guarantees stable, non-degenerate attention behaviour as the sequence length $n$ increases beyond the range seen during training.
-Although one might hope that the model could compensate by implicitly scaling scores with sequence length, the architecture does not provide a reliable way to represent or extrapolate $n$. Consequently, any implicit learned rescaling of query–key interactions remains uniformly bounded, and cannot in general counteract the linear growth of the softmax normalization as $n -> infinity$.
+Although one might hope that the model could compensate by implicitly scaling scores with sequence length, the architecture does not provide a reliable way to represent or extrapolate $n$. Consequently, any implicit learned rescaling of $W_K$ or $W_Q$ matrices remains uniformly bounded, and cannot in general counteract the linear growth of the softmax normalization as $n -> infinity$.
 
 == Scalable Softmax
 
+An initial instict may be to introduce a fixed parameter $beta > 0$ to softmax,
+$
+    "softmax"(s)_j = e^(beta s_j)/(sumkn e^(beta s_k)),
+$
+however this suffers the exact same problem as standard softmax when scores are bounded, since
+$
+    e^(beta(m - M))/n <= "softmax"(s)_j <= e^(beta (M - m)) / n.
+$
+Hence, any non-degenerate scaling $beta$ must depend on $n$, i.e. $beta = beta_n$.
 
 
 = Simplex-Like Geometry
 
 == Setup and Motivation
-
-Summary of Chen et Al.
 
 Consider a simplified version of unmasked single-headed attention in which the head dimension equals the embedding dimension and $W_K = W_Q = W_V = I_d$. 
 For a collection of token embeddings $x_1, ..., x_n in RR^d$, define the normalized vectors $u_i = x_i\/norm(x_i)$. 
@@ -1303,7 +1316,7 @@ $sigma^2_(Q) = sigma^2_(K) = sigma_s / d$
 
 = Unified Framework
 
-== Deterministic Scores
+== Scaling Order
 
 We now concern ourselves with a fixed score vector $s in RR^n$. 
 The following analysis is independent of the attention mechanism, in the sense that the scores are taken as given, where the specific token vectors and weight matrices used to obtain these scores are not of concern.
@@ -1487,17 +1500,97 @@ $
 which immediately gives $Lambda_n = (q-p)^(-1) log(n)$, $alpha_n = 1$, $Delta_Lambda^((n)) = q - p$. Thus,
 $xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation derived in @c511. Furthermore, we see that the non-collapsing scaling has $beta_n asymp log n$, which validates REFERENCE.
 
+== Rank-Collapse Boundary
 
+#proposition("Ties at the maximum")[
+    Let $s in RR^n$. If $N(0) >= 2$, then $Lambda = inf$ and for every $beta > 0$, 
+    $
+        norm(a (beta))_inf <= 1/N(0), quad H(beta) >= log N(0).
+    $
+    In particular, for a sequence of score vectors $(s^((n)))$ with $s^((n)) in RR^n$ and $N(0) >= 2$ for infinitely many $n$, no sequence $X_n$ exists such that $beta_n / X_n -> inf$ implies that $H(beta_n) -> 0$.
+]
+#proof[
+    Since $N(0) >= 2$ and $N$ is non-decreasing, we have that
+    $
+        Lambda = sup_(t > 0) (log N(t))/t >= sup_(t > 0) (log 2) / t = inf.
+    $
+    The top $N(0)$ post-softmax weights are equal and have total mass at most 1, thus $norm(a(beta))_inf <= 1\/N(0)$. This gives entropy bound
+    $
+        H(beta) >= sumjn a_j (beta) log(N(0)) = log N(0) >= log 2,
+    $
+    since post-softmax weights sum to 1. The conclusion for the sequence $(s^((n)))$ follows from the fact that $H(beta) >= log 2$ for infinitely many $n$.
+]
 
+#definition[
+    Given a score vector $s in RR^n$, define the _rank free energy_ $cal(F) (beta) = log Z(beta)$ and the _maximum post-softmax gap_ $cal(G)(beta) = max_(j,k) |a_j (beta) - a_k (beta)|$.
+]
 
-#corollary("Relaxed Entropy Collapse")[
-    If we instead take 
-        $
-            Gamma = limsup_(t > 0) (log N(t))/t
-        $
+#proposition("Rank-Collapse Criterion")[
+    Let $(s^((n)))$ be a sequence of score vectors such that $s^((n)) in RR^n$. For any positive sequence $(beta_n)$, the following are equivalent:
+    1. $cal(F) (beta_n) -> infinity$,
+    2. $cal(G) (beta_n) -> 0$,
+    3. $max_j |a_j^((n)) (beta_n) - 1\/n| -> 0$.
+]
+
+#proof[
+    For simplicity, we omit the argument $beta$ from the post-softmax weights $a^((n))_j (beta)$.
+    The maximum value of $s$ has $Delta_j = 0$, so 
+    $
+        max_j a^((n))_j = 1 / (Z (beta)) = e^(-cal(F) (beta)).
+    $
+    Since $cal(G) (beta) <= max_j a^((n))_j$, $cal(F) (beta_n) -> inf$ implies that $cal(G) (beta_n) -> 0$.
+
+    Conversely, by a basic property of the arithmetic mean, we have the bound $min_j a^((n))_j (beta) <= 1/n$, which gives
+    $
+        max_j a^((n))_j = max_j a^((n))_j - min_k a^((n))_k + min_k a^((n))_k <= cal(G) (beta) + 1/n.
+    $
+    Thus, $cal(G) (beta_n) -> 0$ implies that $max_j a_j^((n)) -> 0$, which is equivalent to $cal(F) (beta) -> infinity$.
+
+    Finally, we observe that $max_j a_j^((n)) -> 0$ is equivalent to $max_j |a_j^((n)) (beta_n) - 1\/n| -> 0$, since $0 <= a^((n))_k <= max_j a^((n))_j$ and $1\/n -> 0$.
+]
+
+== Resolved Accumulation
+
+#definition("Rank Boundary")[
+    For $0 <= r <= log n$, define
+    $
+        B(r) = sup{beta >= 0 : cal(F) (beta) >= r} = sup{beta >= 0 : Z (beta) >= e^r}.
+    $
 
 ]
 
+#definition("Resolved Accumulation Scale")[
+    For $r >= 0$ and a fixed $s in RR^n$, define
+    $
+        Lambda^((r)) = sup_(t > 0 : log N(t) > r) (log N(t) - r)/t,
+    $
+    with convention $sup nothing = 0$.
+]
 
+#proposition[
+    Let $(r_n)$ be a positive sequence such that $r_n -> infinity$. If $beta_n < Lambda_n^((r_n))$ eventually, then $cal(G)(beta_n) -> 0$.
+]
 
-Show attention realizability of scores
+#proof[
+    By assumption, for large enough $n$ we have $beta_n < Lambda_n^((r_n))$. Hence, there is some $t_n$ such that
+    $
+        beta_n < (log N(t_n) - r_n)/t_n,
+    $
+    since $Lambda_n^((r_n))$ is defined in terms of a supremum. Rearranging,
+    $
+         N (t_n) e^(-beta_n t_n) > e^(r_n).
+    $
+    Since $N(t_n)$ competitors each contribute at least $e^(-beta_n t_n)$ to $Z(beta_n)$, we have that
+    $
+        Z(beta_n) > e^(r_n),
+    $
+    which gives that $cal(F)(beta_n) -> inf$, and thus $cal(G)(beta_n) -> 0$ by LINK PREVIOUS SECTION.
+]
+
+#proposition[
+    Define the Laplace envelope 
+    $
+        S(beta) = sup_(t > 0) lrs((log N(t) - beta t)).
+    $
+    
+]
