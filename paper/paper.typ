@@ -69,16 +69,17 @@ Let $n$ be the number of tokens in the sequence of text the model takes in as in
 Assuming that there exists methods to optimize parameters $theta$ with respect to model performance, this approach to developing a model is inherently powerful. Models can first be designed using intuition about how a machine may interpret and predict language under a mathematical framework.
 If the model performs sufficiently well after training, the goal is accomplished. From a purely predictive perspective, it is not necessary that the learned internal mechanisms resemble the original intuition motivating the architechture.
 
-Earlier approaches to language modeling relied heavily on 
+Earlier approaches to language modeling relied on architectures (RNN, CNN) which primarily capture information in a limited or compressed way as text is processed sequentially. These models have difficulty maintaining a truly global understanding of a longer passage, since dependencies from distant parts of the text are either truncated or gradually lost as information is passed through successive steps.
 
-Introduced in 2017, the transformer architecture resolves this issue through a different mechanism that allows every token to directly interact with every other token in the input.
+Introduced in 2017, the Transformer architecture @vaswani2017attention resolves this issue by introducing a completely different mechanism, one which allows every token to directly interact with every other token in the input. This shift fundamentally changed the field of natural language processing, ultimately powering the large language models that now underpin modern AI systems. Section 2 gives an intuition-based overview of the Transformer architecture.
 
+Among other ways to scale a model, of particular interest is the context length $n$. In theory, this would allow the model to use much longer-range context, enabling it to connect information across distant parts of a document and maintain a more coherent global understanding of the input. In real-world applications, this is especially useful for tasks like summarizing long reports, analyzing legal or financial documents, and answering questions that require information spread across many pages. It also improves performance in settings like code generation, where earlier definitions or functions must be remembered much later in the file.
 
-
+However, scaling $n$ has been shown to be a non-trivial task. Among other reasons, the attention mechanism core to the Transformer is suceptible to degenerate behaviour in the large-$n$ limit, which leads to complete loss of expressive power of the model. Recent work has focused on improving the scaling behaviour of softmax attention by introducing an extra parameter, which can be found proposed in @nakanishi2025scalable. Empirically, various modifications have been shown to mitigate the effects of this collapsing attention (REFERENCES), but mathematical justification has remained incomplete. The rest of this report summarizes relevant results in an attempt to unify existing empirical observations and theoretical perspectives on attention scaling.
 
 = The Transformer
 
-This section provides a precise description of the architecture of the transformer model as outlined in (ATTENTION IS ALL YOU NEED). For each step, a brief heuristic justification of the design choice is given based on intuition about how a machine might use the architecture to model language effectively, however it is important to keep in mind that FINISH
+This section provides a precise description of the architecture of the transformer model as outlined in @vaswani2017attention. For each step, a brief heuristic justification of the design choice is given based on intuition about how a machine might use the architecture to model language effectively, however it is important to keep in mind that all that is being done is designing the parametric form $f_theta (bf(X))$, from which the model will optimize $theta$ over a set of training data. Whether the model "thinks" this way in practice is hard to determine, and likely not the case.
 
 Throughout, any _weight matrix_ $W$ or _bias vector_ $b$ is a learned parameter of the model, and any other value is either an input or an intermediary value. In a computational spirit, we will use the "$<-$" symbol to indicate variable assignment. 
 Vector arrows will be used in order to clarify when individual rows or columns of matrices are in question.
@@ -232,7 +233,7 @@ This is useful for model training purposes, but for generation purposes we only 
 
 == Long-Context Transformers
 
-While the term "long" continuously changes meaning as advances are made in machine learning, long-context transformers are transformers that are designed to support a context length $n$ that is substantially longer than what is seen in common models. Many real-world tasks such as reasoning over long documents, codebases, or ANOTHER EXAMPLE require access to information that may be introduced thousands or even millions of tokens earlier, where simply truncating the context leads to severly degraded performance. Increasing context length effectively augments the models "memory", which allows for richer retrieval of relevant evidence and more coherent global reasoning. 
+While the term "long" continuously changes meaning as advances are made in machine learning, long-context transformers are transformers that are designed to support a context length $n$ that is substantially longer than what is seen in common models. Many real-world tasks such as reasoning over long documents, codebases, or dialogues require access to information that may be introduced thousands or even millions of tokens earlier, where simply truncating the context leads to severly degraded performance. Increasing context length effectively augments the models "memory", which allows for richer retrieval of relevant evidence and more coherent global reasoning. 
 
 It is important to distinguish between two types of long-context transformers. The first consists of models explicitly trained on long sequences, which attempt to internalize long-range dependencies during optimization. The second consists of models trained on shorter sequences but designed to generalize at inference time to longer sequences. There also exists hybrids of these two models, which might split training into $80%$ short sequences and $20%$ long sequences, for example.
 
@@ -291,12 +292,13 @@ however this suffers the exact same problem as standard softmax when scores are 
 $
     e^(beta(m - M))/n <= "softmax"(s)_j <= e^(beta (M - m)) / n.
 $
-Hence, any non-degenerate scaling $beta$ must depend on $n$, i.e. $beta = beta_n$.
+Hence, any non-degenerate scaling $beta$ must depend on $n$, i.e. $beta = beta_n$. 
 
+...
 
 = Simplex-Like Geometry
 
-== Setup and Motivation
+== Setup
 
 Consider a simplified version of unmasked single-headed attention in which the head dimension equals the embedding dimension and $W_K = W_Q = W_V = I_d$. 
 For a collection of token embeddings $x_1, ..., x_n in RR^d$, define the normalized vectors $u_i = x_i\/norm(x_i)$. 
@@ -1592,5 +1594,12 @@ $xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation 
     $
         S(beta) = sup_(t > 0) lrs((log N(t) - beta t)).
     $
+
+    ...
     
 ]
+
+#pagebreak()
+#bibliography("citations.bib", title: "References", style: "ieee")
+
+
