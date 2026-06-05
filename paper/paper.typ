@@ -1077,10 +1077,36 @@ We now prove Theorem 3.3.1.
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
-= Statistical Physics
+= Attention at Initialization
 
-$sigma^2_(Q) = sigma^2_(K) = sigma_s / d$
+== Independent Entries
 
+To identify a potential scaling for the full model, we first restrict ourselves to the simpler independent case. Consider a score vector $s = (s_1, ..., s_n)$ with independent and identically distributed entries $s_i tilde cal(N)(0, 1)$.
+If $s_m$ is the maximum score, the maximum attention weight is given by
+$
+    a_m = e^(beta s_m) / (sumkn e^(beta s_k)) = (1 + (sum_(k != m) e^(beta s_k))/e^(s_m))^(-1)
+$
+For large $n$, by the Law of Large Numbers, we have
+$
+    sum_(k != m) e^(beta s_k) tilde n EE[e^(beta s_1)] = n e^(beta^2\/2) = exp(log n + beta^2 \/ 2).
+$
+It can also be shown that $s_m tilde sqrt(2 log n)$ (SHOW OR REFERENCE) and hence $e^(beta s_m) tilde e^(beta sqrt(2 log n))$. A scaling for which $a_m in (0, 1)$ must then have
+$
+    log n + beta^2/2 = beta sqrt(2 log n),
+$
+which yields $beta_n = sqrt(2 log n)$ after solving. Although an asymptotic argument, this identifies $beta_n asymp sqrt(log n)$ as the critical scaling factor under this i.i.d. assumption.
+
+== Correlated Entries
+
+We now generalize to a model that resembles the attention mechanism more closely. Consider the $n times n$ score matrix
+obtained from the multiplication
+
+$
+    S = [((X W_Q)^T (X W_K))/sqrt(d)],
+$
+where $X in RR^(n times d)$ is a random matrix with i.i.d. $cal(N)(0, 1)$ components, and $W_Q, W_K in RR^(d times d)$ are random matrices with i.i.d. $cal(N)(0, 1\/d)$ entries. 
+
+In this context, $S$ is a random object representing what score values may be produced by a randomly initialized model prior to training. For this reason, the score scaling $beta$ may equivalently be viewed as a scaling factor for the variance of i.i.d. $cal(N)(0, beta\/d)$ entries in the $W_Q$ and $W_K$ matrices. This analysis is therefore also particularly useful in the effort of counteracting pathological behaviour at the beginning of training, which could in the worst case lead to an untrainable model.
 
 #lemma("Stein's Lemma")[
     Let $Z = (Z_1, ..., Z_n)^T tilde cal(N)(0, V)$ and $g: RR^n -> RR$ such that $g in C^1$ and $EE[norm(g(Z))], EE[norm(nabla g(Z))] < infinity$. Then,
@@ -1136,11 +1162,11 @@ $sigma^2_(Q) = sigma^2_(K) = sigma_s / d$
 #lemma[
     For large $d$, we have
     $
-        s_(i j) tilde N(0, sigma^2_s q^2),
+        s_(i j) tilde cal(N)(0, 1),
     $
     with covariance structure
     $
-        "Cov"(s_(i j), s_(p q)) = sigma^2_s q_(i p) q_(j q).
+        "Cov"(s_(i j), s_(p q)) = q_(i p) q_(j q).
     $
 ]
 
@@ -1153,14 +1179,14 @@ $sigma^2_(Q) = sigma^2_(K) = sigma_s / d$
             sum_(a, b = 1)^d (W_Q)_(k a) (x_i)_a (W_K)_(k b) (x_j)_b\
         &:= 1/sqrt(d) sum_(k=1)^d D_k.
     $
-    First, $EE[D_k] = 0$ since $EE[(W_Q)_(k a)] = 0$. As for the variance,
+    First, $EE[D_k] = 0$ since all entries of $W_K$ and $W_Q$ have expectation $0$. As for variance,
      
     $
         EE[D_k^2] &= EE[(sum_(a = 1)^d (W_Q)_(k a) (x_i)_a)^2] dot EE[(sum_(b=1)^d (W_K)_(k b) (x_j)_b)^2]\
         &= (sum_(a=1)^d EE[(W_Q)_(k a)^2] (x_i)_a^2) (sum_(b=1)^d EE[(W_K)_(k a)^2] (x_j)_b^2)\
-        &= sigma_s^2/d^2 norm(x_i)^2 norm(x_j, size: #80%)^2\
+        &= 1/d^2 norm(x_i)^2 norm(x_j, size: #80%)^2\
     $
-    Since the $x_k$'s are i.i.d. Gaussian in $RR^d$, $norm(x_k)^2 ->^p q d$, for some $q > 0$ by concentration of norms. By the Central Limit Theorem, $s_(i j) ->^d N(0, sigma^2_s q^2)$. 
+    Since the $x_k$'s are i.i.d. Gaussian in $RR^d$, $norm(x_k)^2/d ->^p 1$ by concentration of norms. By the Central Limit Theorem, $s_(i j) ->^d N(0, beta)$. 
     A similar calculation for covariance yields
 
     $
@@ -1169,8 +1195,8 @@ $sigma^2_(Q) = sigma^2_(K) = sigma_s / d$
             (x_i)_a (x_j)_b (x_p)_alpha (x_q)_beta EE[(W_Q)_(k a) (W_Q)_(l alpha)] EE[(W_K)_(k b) (W_K)_(l beta)]\
         &= 1/d sum_(k, a, b = 1)^d
             (x_i)_a (x_j)_b (x_p)_a (x_q)_b EE[(W_Q)_(k a)^2] EE[(W_K)_(k a)^2]\
-        &= sigma_s^2/d^3 sum_(k=1)^d ip(x_i, x_p) ip(x_j, x_q)\
-        &= sigma_s^2 q_(i p) q_(j q).
+        &= 1/d^3 sum_(k=1)^d ip(x_i, x_p) ip(x_j, x_q)\
+        &= q_(i p) q_(j q).
     $
 ]
 
@@ -1594,9 +1620,44 @@ $xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation 
     $
         S(beta) = sup_(t > 0) lrs((log N(t) - beta t)).
     $
+    For every $beta > 0$,
+    $
+        S(beta) <= cal(F)(beta) <= S(beta) + log(1 + log n).
+    $
+]
 
-    ...
-    
+#proof[
+    Fix $t > 0$. The $N(t)$ tokens with $Delta_j <= t$ each contribute at least $e^(-beta t)$, thus
+    $
+        N(t) e^(-beta t) <= Z(beta),
+    $
+    and hence $log N(t) - beta t <= cal(F) (beta)$. After taking supremums, this gives $S(beta) <= cal(F) (beta)$.
+
+    Consider the ordered gaps $0 = Delta_1 <= Delta_2 <= ... <= Delta_n$. Since $j <= N(Delta_j)$, 
+    $
+        log j - beta Delta_j <= log N(Delta_j) - beta Delta_j <= S(beta),
+    $
+    by definition of $S$. Thus,
+    $
+        e^(-beta Delta_j) <= S(beta)/j,
+    $
+    which when summed over $j$ gives
+    $
+        Z(beta) <= e^(S(beta)) <= S(beta) sumjn 1/j <= e^(S(beta)) (1 + log n),
+    $
+    by a classic bound on the harmonic numbers. Taking logarithms on both sides of the inequality yields the desired upper bound for $cal(F)$.
+]
+
+#corollary[
+    If $beta_n \/ Lambda_n -> 0$ and the _contact-count entropy_ $C_n = log N(Delta^((n))_Lambda) = Lambda_n Delta^((n))_Lambda$ satisfies $C_n -> inf$, then $cal(G) (beta_n) -> 0$.
+]
+
+#proof[
+    Set $r_n = beta_n \/ Lambda_n$. By the previous proposition,
+    $
+        Z(beta_n) >= N(Delta_n) e^(-beta_n Delta^((n))_Lambda) = e^(C_n - r_n C_n) = e^((1 - r_n) C_n),
+    $
+    and thus $cal(F) (beta_n) >= (1 - r_n) C_n$. Since $r_n -> 0$ and $C_n -> inf$, we have that $cal(F) -> inf$, which is equivalent to $cal(G) (beta_n) -> 0$ by LINK PROPOSITION.
 ]
 
 #pagebreak()
