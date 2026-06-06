@@ -30,6 +30,9 @@
 
 // Todo fix indenting after figures/theorems
 
+
+#outline(depth: 2, title: [#smallcaps("Contents")])
+
 #set align(left)
 
 = Introduction
@@ -47,7 +50,7 @@ We will assume that the set $cal(X)$ of tokens for our model is chosen beforehan
     caption: [GPT-4 tokenizer on sample text.]
 )
 #linebreak()
-Let $n$ be the number of tokens in the sequence of text the model takes in as input, known as _context length_. The model can therefore be seen as a function $f: cal(X)^n -> Delta(cal(X))$, where $Delta(cal(X))$ is the set of probability distributions over $cal(X)$. To develop a model, we design the model's parametric form $f(bold(X) | theta)$ and use likelihood estimation on a large set of sample data to determine parameters $theta$ for which model performs sufficiently well. These are not simple tasks: for any decent model, $f$ is extremely complex and highly nonlinear, and the size of $cal(X)$, $n$, and $theta$ are several orders of magnitude beyond the regime on which classical methods in statistics are effective.
+Let $n$ be the number of tokens in the sequence of text the model takes in as input, known as _context length_. The model can therefore be seen as a function $f: cal(X)^n -> cal(P)_(cal(X))$, where $cal(P)_cal(X)$ is the set of probability distributions over $cal(X)$. To develop a model, we design the model's parametric form $f(bold(X) | theta)$ and use likelihood estimation on a large set of sample data to determine parameters $theta$ for which model performs sufficiently well. These are not simple tasks: for any decent model, $f$ is extremely complex and highly nonlinear, and the size of $cal(X)$, $n$, and $theta$ are several orders of magnitude beyond the regime on which classical methods in statistics are effective.
 
 #figure(
     table(
@@ -84,7 +87,20 @@ This section provides a precise description of the architecture of the transform
 Throughout, any _weight matrix_ $W$ or _bias vector_ $b$ is a learned parameter of the model, and any other value is either an input or an intermediary value. In a computational spirit, we will use the "$<-$" symbol to indicate variable assignment. 
 Vector arrows will be used in order to clarify when individual rows or columns of matrices are in question.
 
-== The Softmax Function
+== Softmax
+
+Beyond language modelling, it is frequently needed that a model output a probability distribution over a finite set of candidate outcomes. This arises in tasks such as classification, retrival, and decision-making, where the model must assign relative likelihoods to discrete alternatives rather than produce a single deterministic value.
+In these settings, the outputs are typically unconstrained real-valued scores that must be converted into a valid probability distribution.
+
+#definition("Softmax")[
+    Let $s in RR^n$. Define the function $"softmax": RR^n -> cal(P)_n$ as
+    $
+        "softmax"(s)_j = e^(s_j) / (sumkn e^(s_k)).
+    $
+    For a matrix $S in RR^(n times m)$, $"softmax"(S)$ is the $RR^(n times m)$ matrix where $"softmax"$ has been applied either row-wise or column-wise, depending on context.
+]
+It is clear that $"softmax"$ outputs a valid probability distribution, is differentiable, and preserves the ordering of scores. While many other functions could in principle be used, softmax is the most widely adopted choice.
+
 
 == Embedding and Positional Encoding
 
@@ -239,7 +255,7 @@ It is important to distinguish between two types of long-context transformers. T
 
 From a scaling perspective, there are many issues related to naively increasing context length that apply to both types of long-context transformers. First and foremost, attention grows quadratically in context length, since a vanilla attention matrix $A$ is of size $n times n$. Second, attention suffers from large-$n$ scaling issues inherent to the softmax function. The remainder of this report investigates the latter. In general, the results collected throught are moreso properties of the softmax function under specific inputs rather than anything regarding the underlying Transformer architechture or training, and thus we will not differentiate between the two types of long-context Transformers unless it is pertinent.
 
-= Attention Scaling
+= The Need for Attention Scaling
 
 == Insufficiency of Standard Softmax
 
@@ -695,7 +711,7 @@ Since $p < 1$, the trailing term in the denominators of the $gamma >= 1/(1 - p)$
 The phase transition is especially clear in this case. In the subcritical regime, all token embeddings collapse onto the same direction, which implies that attention is behaving like an averaging operator, $"ATT"(u_i) = 1/n sum_j u_j$. In the supercritical regime, the geometry of the embeddings is asymptotically unchanged and attention behaves like the identity map.
 In some sense, this provides a reason for why residual connections are crucical in avoiding this rank collapse phenomenon.
 
-== Backwards Pass
+== Backpropagation
 
 #theorem("Phase Transition in Attention Gradient")[
     Assume there exist constants $q_1, q_2 > 0$ and $p_1, p_2 in (0, 1)$ such that $q_1 <= norm(x_i)^2 <= q_2$ and $p_1 <= ip(u_i, u_j) <= p_2$ for any $i != j$, with $p_1 = ip(u_i, u_j)$ for some $i, j$. Let $beta = gamma log n$ with $gamma > 0$.
@@ -706,7 +722,7 @@ In some sense, this provides a reason for why residual connections are crucical 
     $
     2. If $gamma > 1/(1 - p_2)$,
     $
-        1/(n d) norm(nabla_X X')^2 <= 1/q_2 (1 - 1/d) + o_n (1).
+        1/(n d) norm(nabla_X X')^2 >= 1/q_2 (1 - 1/d) + o_n (1).
     $
 ]<t32>
 
@@ -1137,25 +1153,25 @@ In this context, $S$ is a random object representing what score values may be pr
 #lemma("Derivative of Scaled Softmax")[
     Let $S in RR^(n times n)$. For any $i, j, k in {1, ..., n}$,
     $
-        pddv(a_(i j), s_(i k)) = pdv(s_(i k)) ((e^(h s_(i j)))/(sum_(l = 1)^n e^(h s_(i l))))
-        = h a_(i j) (delta_(j k) - a_(i k)).
+        pddv(a_(i j), s_(i k)) = pdv(s_(i k)) ((e^(h beta s_(i j)))/(sum_(l = 1)^n e^(h beta s_(i l))))
+        = h beta a_(i j) (delta_(j k) - a_(i k)).
     $
 ]
 
 #proof[
     The derivative of the numerator is
     $
-       pdv(s_(i k)) e^(h s_(i j)) = h e^(h s_(i j)) delta_(j k).
+       pdv(s_(i k)) e^(h beta s_(i j)) = h beta e^(h beta s_(i j)) delta_(j k).
     $
     The derivative of the denominator $Z_i$ is 
     $
-       pdv(s_(i k)) Z_i = h e^(h s^(i k)).
+       pdv(s_(i k)) Z_i = h beta e^(h beta s^(i k)).
     $
     By quotient rule,
     $
-        pdv(s_(i k)) ((e^(h s_(i j)))/(sum_(l = 1)^n e^(h s_(i l))))
-        = (h e^(h s_(i j)) delta_(j k) Z  - e^(h s_(i j)) h e^(h s^(i k))) / Z^2
-        = h a_(i j) (delta_(j k) - a_(i k)).
+        pdv(s_(i k)) ((e^(h beta s_(i j)))/(sum_(l = 1)^n e^(h beta s_(i l))))
+        = (h beta e^(h beta s_(i j)) delta_(j k) Z  - e^(h beta s_(i j)) h beta e^(h beta s^(i k))) / Z^2
+        = h beta a_(i j) (delta_(j k) - a_(i k)).
     $
 ]
 
@@ -1200,149 +1216,165 @@ In this context, $S$ is a random object representing what score values may be pr
     $
 ]
 
+#definition[
+    Given attention weights $a_i in RR^n$, define the _inverse participation ratio_
+    $
+        Y^((2))_(i) = sum_(j = 1)^n a_(i j)^2.
+    $
+]
+
+The inverse participation ratio heuristically satisfies
+$
+    Y^((2))_(i) = 1 / ("effective support size of" a_i),
+$
+since $Y^((2))_(i) = 1$ if $a_i$ has a single coordinate with value $1$ and $Y^((2))_i = 0$ if $a_i$ is uniform. We are specifically interested in a scaling $beta$ that avoids these two cases in the large-$n$ limit.
+
+
 #lemma[
     Define the function
-
     $
-        Phi_n (gamma, h) = EE[log Z_i (gamma, h)], "    " Z_i (gamma, h) = sumo(j, n) e^(h s_(i j)),
+        Phi_n (beta, h) = EE[log Z_i (beta, h)], "    " Z_i (beta, h) = sumo(j, n) e^(h beta s_(i j)).
     $
-    noting that $Phi$ is a function of $gamma$ since the covariances of scores depend on $gamma$.
     Then,
     $
-        limn EE[Y^((2))_i] = 1 - 1/(sigma_s^2 q (q - p)) lim_(h -> 1) limn pdv(h) Phi_n (gamma, h).
+        limn EE[Y^((2))_i] = 1 - lim_(h -> 1) limn pdv(h) 1/beta^2 Phi_n (beta, h).
     $
 ]
 
 #proof[
     We first note that we can safely swap derivative and expectation in the case of 
     $
-        pdv(h) Phi_n (gamma, h) = EE[pdv(h) log Z_i (gamma, h)]
-            = EE[(sumjn s_(i j) e^(h s_(i j)))/(sumkn e^(h s_(i k)))]
-            = sumjn EE[s_(i j) a_(i j)].
+        pdv(h) Phi_n (beta, h) = EE[pdv(h) log Z_i (beta, h)]
+            = EE[(sumjn beta s_(i j) e^(h beta s_(i j)))/(sumkn e^(h beta s_(i k)))]
+            = beta sumjn EE[s_(i j) a_(i j)],
     $
-    Since this is a sum of elements of the form $EE[s_(i j) g(s_i)]$ where $s_i$ is Gaussian (by Lemma 4.3), we can apply Stein's Lemma to obtain
+    where we temporarily use the notation $a_(i j) = exp(h beta s_(i j)) \/ Z_i (beta, h)$.
+    Since this is a sum of elements of the form $EE[s_(i j) g(s_i)]$ where $s_i in RR^n$ is normally distributed, we apply Stein's Lemma to obtain
     $
-        pdv(h) Phi_n (gamma, h) &=
-            sumjn sumkn "Cov"(s_(i j), s_(i k)) EE[pddv(a_(i j), s_(i k))]\
-            &= sumjn sumkn sigma^2_s q_(i i) q_(j k) EE[h a_(i j) (delta_(j k) - a_(i k))].
+        pdv(h) Phi_n (beta, h) &=
+            beta sumjn sumkn "Cov"(s_(i j), s_(i k)) EE[pddv(a_(i j), s_(i k))]\
+            &= beta^2 sumjn sumkn q_(i i) q_(j k) EE[h beta a_(i j) (delta_(j k) - a_(i k))].
     $
-    Justification needed
-    Define $Y_(i, h)^((2)) = sum_(j = 1)^n a_(i j)^2$. 
+    Define $Y_(i, h)^((2)) = sum_(j = 1)^n a_(i j)^2$. We use the fact that $q_(i i) ->^p 1$ and $q_(i j) ->^p 0$ for $i != j$ in high dimensions. This gives
     $ 
-        pdv(v) Phi_i (gamma, h) 
-            &approx h sigma_s^2 q sumjn sumkn
-                (q delta_(j k) + p (1 - delta_(j k))) 
+        pdv(h) Phi_n (beta, h) 
+            &approx beta^2 h sumjn sumkn
+                delta_(j k) 
                 EE[a_(i j) delta_(j k) - a_(i j) a_(i k)]\
-            &= h sigma_s^2 q sumjn sumkn
-                EE[q a_(i j) delta_(j k) 
-                - q a_(i j) a_(i k) delta_(j k)
-                - p a_(i j) a_(i k) (1 - delta_(j k))]\
-            &= h sigma_s^2 q sumjn
-               EE[q a_(i j) - q a_(i j)^2 
-               - p a_(i j) sum_(j' != j) a_(i j')]\
-            &= h sigma_s^2 q 
-                (
-                    q (EE[sumjn a_(i j)] - EE[a_(i j)^2]) 
-                    - p thin EE[sumjn a_(i j) (1 - a_(i j))]
-                )\
-            &= h sigma_s^2 q (q - p) (1 - EE[Y_(i, h)^((2))]).
+            &= beta^2 h sumjn
+                EE[a_(i j)
+                - a_(i j)^2
+                ]\
+            &= beta^2 h (1 - EE[Y_(i, h)^((2))]).
     $
     Rearranging and taking limits gives
     $
         limn EE[Y_(i)^((2))] = 
-        1 - 1/(sigma_s^2 q (q - p)) lim_(h -> 1) limn pdv(h) Phi_n (gamma, h).
+        1 - lim_(h -> 1) limn pdv(h) 1/beta^2 Phi_n (beta, h).
     $
 ]
 
+We are now left with computing $Phi_n (beta, h) = EE[log Z_i (beta, h)]$. This is a problem similar to the well-studied Random Energy Model from statistical physics, for which methods exist. In particular, we use the replica method, which is based on the applicaiton of the limit
+
+$
+    EE[log Z] = lim_(t -> 0^+) (EE[Z^t] - 1)/t.
+$
+
+In general, the replica method is not fully mathematically rigorous, especially in its use of analytic continuation and assumptions about the structure of overlap matrices. Despite this, it is able to provide accurate predictions in a wide range of disordered systems and high-dimensional probabilistic models.
+
+#theorem[
+    Under the scaling $beta_n = gamma sqrt(log n)$ where $gamma > 0$ is a constant, the inverse participation ratio satisfies
+    $
+        limn EE[Y_i^((2)) (beta)]
+            = cases(
+                0"," quad &gamma < sqrt(2)",",
+                1 - sqrt(2)/gamma"," quad &gamma > sqrt(2).
+            )
+    $
+    Thus, under this model, the critical scaling is of order $beta asymp sqrt(log n)$ with phase transition at $beta = gamma sqrt(log n)$.
+]
+
 #proof[
-    We now use the replica method from statistical physics. ZN JSUTIFICATION
+    First, we consider the replicated system
     $
-        EE[Z_i^t (gamma, h)] &= EE[(sumkn e^(h s_(i k)))^t]
-        = sum_(k_1, ..., k_t = 1)^n EE[exp(h sumo(a, t) s_(i k_a))]
+        EE[Z_i^t (beta, h)] &= EE[(sumkn e^(h beta s_(i k)))]^t
+        = sum_(k_1, ..., k_t = 1)^n EE[exp(h beta sumo(a, t) s_(i k_a))].
     $
-    MGF justification
+    Using the moment-generating function of the multivariate normal distribution,
     $
-        EE[Z_i^t (gamma, h)] 
+        EE[Z_i^t (beta, h)] 
             &= sum_(k_1, ..., k_t = 1)^n 
-                exp(h^2/2 sum_(a, b = 1)^t EE[s_(i k_a) s_(i k_b)])\
+                exp((h^2 beta^2)/2 sum_(a, b = 1)^t EE[s_(i k_a) s_(i k_b)])\
             &= sum_(k_1, ..., k_t = 1)^n
-                exp((h^2 sigma^2_s)/2 
-                    sum_(a, b = 1)^t q^2 delta_(k_a k_b) + q p (1 - delta_(k_a k_b))
-                )\
-            &= sum_(k_1, ..., k_t = 1)^n
-                exp((h^2 sigma^2_s)/2 
-                    sum_(a, b = 1)^t (q(q - p) delta_(k_a k_b) + q p)
-                )\
-            &= sum_(k_1, ..., k_t = 1)^n
-                exp((h^2 sigma^2_s)/2 
-                    q(q - p) sum_(a, b = 1)^t delta_(k_a k_b) + O(t^2)
-                )\
-                
+                exp((h^2 beta^2)/2 
+                    sum_(a, b = 1)^t delta_(k_a k_b)
+                )
     $
     Define the empirical overlap matrix $Q$ with entries $Q_(a b) = delta_(k_a k_b)$. 
-    Among all $n^t$ replicas, there are 
+    Among all $n^t$ possible configurations of replica states, there are 
     $
         S(Q) = sum_(k_1, ..., k_t = 1)^n product_(a, b = 1)^t ind(Q_(a b) = delta_(k_a k_b))
     $
     with a specific overlap matrix $Q$. Thus,
     $
-        EE[Z_i^t (gamma, h)] = 
+        EE[Z_i^t (beta, h)] = 
             sum_Q S(Q)
-                exp((h^2 sigma^2_s)/2 
-                    q(q - p) sum_(a, b = 1)^t Q_(a b) + O(t^2)
-                ).
+                exp((h^2 beta^2)/2 
+                    sum_(a, b = 1)^t Q_(a b)
+                )
+            = sum_Q exp(log S(Q) + (h^2 beta^2)/2 sum_(a, b = 1)^t Q_(a b)).
     $
-    The large $n$ behaviour of this expression is determined by the overlap matrix that best "balances" $S(Q)$ and $sum_(a, b) Q_(a b)$. We let $n = e^N$ and control $N$.
+    For large $n$, this sum is dominated by overlap structure $Q$ that maximizes the exponent, in acordance with the Laplace principle. To evaluate this dominant contribution, we restrict attention to a class of structured overlap matrices, which is the _1-RSB Ansatz_ step in the Replica method. 
 
-    Something about $Q$ equally partitioned to give $t x$ groups
-    - $S(Q)$ entropy gain from more independent clusters
-    - $sum Q_(a b)$ energy gain from bigger clusters
-    - Replica system will be dominated by when these are balanced
-    - the only x that survives exponential weighting is the one where the net exponential growth rate is stationary
+    By a symmetric argument, we assume that for this maximizing $Q$, the $t$ states across the replicas are divided into $t / x$ groups of $x$ elements each, where replicas within the same group occupy the same state, i.e. $k_a = k_b$ if and only if replicas $a$ and $b$ are in the same group. 
 
+    Although $x$ will ulitimately be extended to real values via analytic continuation, we temporarily assume that relevent quantities are integers in order to analyze the system combinatorically.
+    For any maximizing $Q$ under this assumption,
     $
-        S(Q) tilde (\# "tokens")^(\# "groups") = e^(N t x)
+        S(Q) = n dot (n - 1) thin dots.c thin (n - t/x + 1) dot (t!)/((x!)^(t\/x) (t\/x!)),
     $
-
+    so $log S(Q) approx t/x log n$ for large $n$, since $t, x << n$. Also,
     $
-        sum_(a, b = 1)^t Q_(a b) 
-            = (\# "group")(\# "pairs per group") = (t x) dot (1/t)^2 = x / t
+        sum_(a, b = 1)^t Q_(a b) = sum_("groups") x^2 = t x,
     $ 
-
+    which gives after Taylor expansion
     $
-        EE[Z_i^t (gamma, h)]
-            &tilde exp[
-                limits("ext")_(0 < x <= 1) (
-                    N t x + (h^2 gamma log(e^N))/2 q(q - p) t/x + O(t^2)
-                )
-            ]\
-            &= exp[
-                N t limits("ext")_(0 < x <= 1) (
-                    x + (h^2 gamma)/2 q(q - p) 1/x + O(t)
-                )
-            ]\
+        (EE[Z^t_i (beta, h)] - 1)/t = 1/x log n + (h^2 beta^2)/2 x + O(t^2).
+    $
+    Determining the value of $x$ corresponding to this maximizing $Q$ reduces, in this representation, to a minimization over $x$, the reason for which lies beyond the scope of this derivation. In the analytic continuation with $t -> 0^+$, we minimize over $x in (0, 1)$, giving
+    $
+        x = min{1/(h beta) sqrt(2 log n), 1}.
+    $
+    Using this,
+    $
+        Phi_n (beta, h) = lim_(t -> 0^+) [(EE[Z^t_i (beta, h)] - 1)/t] = 
+            cases(
+                log n + (h^2 beta^2)/2"," quad &beta < sqrt(2 log n)/h",",
+                h beta sqrt(2 log n)"," quad &beta > sqrt(2 log n)/h"."
+            )
+    $
+    We now assume $beta_n = gamma sqrt(log n)$. Thus,
+    $
+        pdv(h) 1/beta^2 Phi_n (beta, h)
+            = cases(
+                h"," quad &gamma < sqrt(2),
+                (h sqrt(2))/gamma"," quad &gamma > sqrt(2).
+            )
+    $
+
+    By the previous lemma,
+    $
+        limn EE[Y_i^((2)) (beta)]
+            = cases(
+                0"," quad &gamma < sqrt(2)",",
+                1 - sqrt(2)/gamma"," quad &gamma > sqrt(2).
+            )
     $
     
-    Simplify
-
-    $
-        1/(N t) ln EE[Z_i^t (gamma, h)])
-            = limits("ext")_(0 < x <= 1) (x + (h^2 gamma)/2 q(q-p) 1/x)\
-    $
-    
-    Extremum at
-    $
-        x_* = h sqrt((gamma q(q - p))/2)
-    $
-
-
-    $
-        gamma_c =  
-    $
 ]
 
 
-= Unified Framework
+= Deterministic Score Theory
 
 == Scaling Order
 
