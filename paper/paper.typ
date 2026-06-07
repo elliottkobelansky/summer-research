@@ -20,7 +20,7 @@
 )
 
 #set text(
-    size: 11pt,
+    size: 11.5pt,
     font: "New Computer Modern",
     hyphenate: false
 )
@@ -30,6 +30,7 @@
 
 // Todo fix indenting after figures/theorems
 
+#set cite(style: "alphanumeric")
 
 #outline(depth: 2, title: [#smallcaps("Contents")])
 
@@ -288,7 +289,7 @@ Therefore, any nontrivial attention mechanism in the large-$n$ limit must be dri
 
 #proof[
     Since $cal(X) subset.eq RR^d$ is finite, both $cal(X)$ and its convex hull $"conv"(cal(X))$ are compact. Since all feedfoward operators $F_l$ and $v_l$ act row-wise and are continuous, they preserve compactness row-wise. Each output row of a self-attention layer is a convex combination of vectors in a compact set, hence remains in a compact set. By induction over $L$, the finite number of layers, all embeddings lie in a compact set, independent of $n$. In particular, there exists a compact set $C subset.eq RR^k$ such that all rows $Q_i^((n)), thin K_i^((n)) in C$. 
-    Hence, any score has the bound $|S^((n))_(i j)| <= M$, where $M > 0$. By a similar derivation as before, we obtain
+    Hence, there exists an $M > 0$ such that any score has the bound $|S^((n))_(i j)| <= M$. By a similar derivation as before, we obtain
     $
         e^(-2 M)/n <= A^((n))_(i j) <= e^(2 M) / n.
     $
@@ -577,7 +578,7 @@ We will first prove a series of lemmas.
 
 We now prove @t31.
 
-#proof[
+#proof([of @t31])[
   First, consider the case where $gamma < 1/(1 - p_1)$. We can further simplify the result in @lemma3 by completing the square, giving
   $
     norm(x'_i)^2 &<= 
@@ -895,9 +896,9 @@ In some sense, this provides a reason for why residual connections are crucical 
     where the intermediate steps follow from basic properties of the tensor product.
 ]
 
-We now prove Theorem 3.3.1.
+We now prove @t31.
 
-#proof[
+#proof([of @t31])[
     Throughout this proof, we use the fact that $norm(x tp y)_F = norm(x)_2 norm(y)_2$, as well as $norm(A)_F^2 = tr(A^T A)$. The subscripts will be dropped since we are exclusively using the Frobenius norm for matrices and 2-norm for vectors. First consider the case when $gamma > 1/(1 - p_2)$.
 
     1. When $i != j$, $bf(R)_1 Z_j^(-1) = 0$. When $i = j$, we obtain (using the form of $bf(R)_1$ before simplification in the previous lemma)
@@ -1067,33 +1068,16 @@ We now prove Theorem 3.3.1.
         &= 4 (gamma^2 (log n)^2)/(d q_1) + o_n (1),
     $
     since $gamma(1 - p_1) - 1 < 0$.
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 ]
-
-#pagebreak()
 
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
 = Attention at Initialization
+
+A natural next step after studying the equicorrelated setting is to consider the fully random case, where the inputs no longer share a common correlation structure and instead behave like independent high-dimensional noise.
+This serves as a baseline model in which any structure in the attention scores comes purely from random fluctuations, most importantly in the case of a newly initialized, pre-trained model. The purpose of this regime is not to improve upon the equicorrelated analysis, but to provide a contrasting basline.
 
 == Independent Entries
 
@@ -1106,7 +1090,7 @@ For large $n$, by the Law of Large Numbers, we have
 $
     sum_(k != m) e^(beta s_k) tilde n EE[e^(beta s_1)] = n e^(beta^2\/2) = exp(log n + beta^2 \/ 2).
 $
-It can also be shown that $s_m tilde sqrt(2 log n)$ (SHOW OR REFERENCE) and hence $e^(beta s_m) tilde e^(beta sqrt(2 log n))$. A scaling for which $a_m in (0, 1)$ must then have
+It can also be shown that $s_m tilde sqrt(2 log n)$ @leadbetter1983extremes and hence $e^(beta s_m) tilde e^(beta sqrt(2 log n))$. A scaling for which $a_m in (0, 1)$ must then have
 $
     log n + beta^2/2 = beta sqrt(2 log n),
 $
@@ -1120,9 +1104,32 @@ obtained from the multiplication
 $
     S = [((X W_Q)^T (X W_K))/sqrt(d)],
 $
-where $X in RR^(n times d)$ is a random matrix with i.i.d. $cal(N)(0, 1)$ components, and $W_Q, W_K in RR^(d times d)$ are random matrices with i.i.d. $cal(N)(0, 1\/d)$ entries. 
+where $X in RR^(n times d)$ is a random matrix with i.i.d. $cal(N)(0, 1)$ components, and $W_Q, W_K in RR^(d times d)$ are random matrices with i.i.d. $cal(N)(0, 1\/d)$ entries. Define the _token similarity_ $q_(i j) = ip(s_i, s_j)\/d$.
 
 In this context, $S$ is a random object representing what score values may be produced by a randomly initialized model prior to training. For this reason, the score scaling $beta$ may equivalently be viewed as a scaling factor for the variance of i.i.d. $cal(N)(0, beta\/d)$ entries in the $W_Q$ and $W_K$ matrices. This analysis is therefore also particularly useful in the effort of counteracting pathological behaviour at the beginning of training, which could in the worst case lead to an untrainable model.
+
+#definition[
+    Given attention weights $a_i in RR^n$, define the _inverse participation ratio_
+    $
+        Y^((2))_(i) = sum_(j = 1)^n a_(i j)^2.
+    $
+]
+The inverse participation ratio heuristically satisfies
+$
+    Y^((2))_(i) = 1 / ("effective support size of" a_i),
+$
+since $Y^((2))_(i) = 1$ if $a_i$ has a single coordinate with value $1$, and $Y^((2))_i = 1/n$ if $a_i$ is uniform. We are specifically interested in a scaling $beta$ that avoids these two cases in the large-$n$ limit.
+#theorem[
+    Under the scaling $beta_n = gamma sqrt(log n)$ where $gamma > 0$ is a constant, the inverse participation ratio satisfies
+    $
+        limn EE[Y_i^((2)) (beta)]
+            = cases(
+                0"," quad &gamma < sqrt(2)",",
+                1 - sqrt(2)/gamma"," quad &gamma > sqrt(2).
+            )
+    $
+    Thus, under this model, the critical scaling is of order $beta asymp sqrt(log n)$ with phase transition at $beta = gamma sqrt(log n)$.
+]<theorem-correlated>
 
 #lemma("Stein's Lemma")[
     Let $Z = (Z_1, ..., Z_n)^T tilde cal(N)(0, V)$ and $g: RR^n -> RR$ such that $g in C^1$ and $EE[norm(g(Z))], EE[norm(nabla g(Z))] < infinity$. Then,
@@ -1216,18 +1223,6 @@ In this context, $S$ is a random object representing what score values may be pr
     $
 ]
 
-#definition[
-    Given attention weights $a_i in RR^n$, define the _inverse participation ratio_
-    $
-        Y^((2))_(i) = sum_(j = 1)^n a_(i j)^2.
-    $
-]
-
-The inverse participation ratio heuristically satisfies
-$
-    Y^((2))_(i) = 1 / ("effective support size of" a_i),
-$
-since $Y^((2))_(i) = 1$ if $a_i$ has a single coordinate with value $1$ and $Y^((2))_i = 0$ if $a_i$ is uniform. We are specifically interested in a scaling $beta$ that avoids these two cases in the large-$n$ limit.
 
 
 #lemma[
@@ -1282,19 +1277,8 @@ $
 
 In general, the replica method is not fully mathematically rigorous, especially in its use of analytic continuation and assumptions about the structure of overlap matrices. Despite this, it is able to provide accurate predictions in a wide range of disordered systems and high-dimensional probabilistic models.
 
-#theorem[
-    Under the scaling $beta_n = gamma sqrt(log n)$ where $gamma > 0$ is a constant, the inverse participation ratio satisfies
-    $
-        limn EE[Y_i^((2)) (beta)]
-            = cases(
-                0"," quad &gamma < sqrt(2)",",
-                1 - sqrt(2)/gamma"," quad &gamma > sqrt(2).
-            )
-    $
-    Thus, under this model, the critical scaling is of order $beta asymp sqrt(log n)$ with phase transition at $beta = gamma sqrt(log n)$.
-]
 
-#proof[
+#proof([of @theorem-correlated])[
     First, we consider the replicated system
     $
         EE[Z_i^t (beta, h)] &= EE[(sumkn e^(h beta s_(i k)))]^t
@@ -1558,7 +1542,7 @@ $
     N(t) = cases(1", " &t < q - p",", n", " &t >= q - p)
 $
 which immediately gives $Lambda_n = (q-p)^(-1) log(n)$, $alpha_n = 1$, $Delta_Lambda^((n)) = q - p$. Thus,
-$xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation derived in @c511. Furthermore, we see that the non-collapsing scaling has $beta_n asymp log n$, which validates REFERENCE.
+$xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation derived in @c511. Furthermore, we see that the non-collapsing scaling has $beta_n asymp log n$, which validates @t31.
 
 == Rank-Collapse Boundary
 
@@ -1590,7 +1574,7 @@ $xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation 
     1. $cal(F) (beta_n) -> infinity$,
     2. $cal(G) (beta_n) -> 0$,
     3. $max_j |a_j^((n)) (beta_n) - 1\/n| -> 0$.
-]
+]<rank-collapse-criterion>
 
 #proof[
     For simplicity, we omit the argument $beta$ from the post-softmax weights $a^((n))_j (beta)$.
@@ -1644,7 +1628,7 @@ $xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation 
     $
         Z(beta_n) > e^(r_n),
     $
-    which gives that $cal(F)(beta_n) -> inf$, and thus $cal(G)(beta_n) -> 0$ by LINK PREVIOUS SECTION.
+    which gives that $cal(F)(beta_n) -> inf$, and thus $cal(G)(beta_n) -> 0$ by @rank-collapse-criterion.
 ]
 
 #proposition[
@@ -1689,10 +1673,9 @@ $xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation 
     $
         Z(beta_n) >= N(Delta_n) e^(-beta_n Delta^((n))_Lambda) = e^(C_n - r_n C_n) = e^((1 - r_n) C_n),
     $
-    and thus $cal(F) (beta_n) >= (1 - r_n) C_n$. Since $r_n -> 0$ and $C_n -> inf$, we have that $cal(F) -> inf$, which is equivalent to $cal(G) (beta_n) -> 0$ by LINK PROPOSITION.
+    and thus $cal(F) (beta_n) >= (1 - r_n)C_n$. Since $r_n -> 0$ and $C_n -> inf$, we have that $cal(F) -> inf$, which is equivalent to $cal(G) (beta_n) -> 0$ by @rank-collapse-criterion.
 ]
 
 #pagebreak()
-#bibliography("citations.bib", title: "References", style: "ieee")
-
+#bibliography("citations.bib", title: "References")
 

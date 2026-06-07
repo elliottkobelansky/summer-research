@@ -82,35 +82,41 @@
   padding: (top: 0pt, bottom: -4pt),
 )
 
+#let thmsettings2 = (
+  inset: (top: 0.6em, left: 0em, right: 0em, bottom: 0.82em),
+  base_level: 2,
+  padding: (top: 0pt, bottom: -4pt),
+)
+
 #let theorem = thmbox(
   "theorem", // identifier
   text("Theorem"),//, fill: solarized.red), // head
   fill: solarized.gray,
   inset: thmsettings.inset,
-  // stroke: 1pt
+  stroke: 1pt,
   base_level: thmsettings.base_level,
   supplement: "Theorem",
   padding: thmsettings.padding,
 )
 
 #let lemma = thmbox(
-  "lemma", // identifier
+  "theorem", // identifier
   text("Lemma"), // head
-  fill: solarized.gray,
-  inset: thmsettings.inset,
+  //fill: solarized.gray,
+  inset: thmsettings2.inset,
   base_level: thmsettings.base_level,
   supplement: "Lemma",
   padding: thmsettings.padding,
 )
 
 #let proposition = thmbox(
-  "proposition", // identifier
+  "theorem", // identifier
   // $arrow.hook$+" Proposition",
   text("Proposition"),//, fill: solarized.magenta), // head
-  fill: solarized.gray,
-  inset: thmsettings.inset,
+  //fill: solarized.gray,
+  inset: thmsettings2.inset,
   base_level: thmsettings.base_level,
-  supplement: "Prop.",
+  supplement: "Proposition",
   padding: thmsettings.padding,
   // stroke: 1pt
 )
@@ -118,20 +124,20 @@
 #let corollary = thmbox(
   "corollary",
   // $arrow.hook$+" Corollary",
-  text("Corollary", fill: solarized.orange), // head
-  fill: solarized.gray,
-  inset: thmsettings.inset,
+  text("Corollary"),//, fill: solarized.orange), // head
+  //fill: solarized.gray,
+  inset: thmsettings2.inset,
   base_level: thmsettings.base_level,
   padding: thmsettings.padding,
   supplement: "Corollary",
 )
 
 #let definition = thmbox(
-  "definition",
+  "theorem",
   "Definition",
   text("Definition", fill: solarized.gray),
-  fill: solarized.gray,
-  inset: thmsettings.inset,
+  //fill: solarized.gray,
+  inset: thmsettings2.inset,
   base_level: thmsettings.base_level,
   padding: thmsettings.padding,
 )
@@ -176,13 +182,12 @@
 #let proof = thmproof(
   "proof",
   text(
-    smallcaps("Proof"),
+    "Proof",
     // highlight("Proof", fill: white, stroke: black, top-edge: "cap-height", extent: 3pt),
-    style: "oblique",
-    weight: "regular",
   ),
+  titlefmt: emph,
 
-  inset: (top: 0em, left: 2.8em, right: 1.4em),
+  inset: (top: 0em, left: 0em, right: 0em),
   separator: [#h(0.1em). #h(0.2em)],
 )
 
