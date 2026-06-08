@@ -273,7 +273,7 @@ Then, we have that $"softmax"(s^((n)))_j = Theta(1/n)$ for all $j$ and thus $nor
 Heuristically, the entire softmax vector becomes diffuse and "true" attention, in the sense of assigning a non-vanishing proportion of mass to a distringuished set of coordinates, cannot emerge.
 Therefore, any nontrivial attention mechanism in the large-$n$ limit must be driven by score fluctuations whose scale grows with $n$, allowing certain coordinates to overcome the $Theta(n)$ growth of the softmax normalizing constant. Because attentions scores are usually designed to be probabilistically $O(1)$, this is naturally a problem when considering large-$n$ inputs.
 
-#theorem[
+#stheorem(name: "Long-Context Attention Collapse", source: [@velickovic2024softmax])[
     Let $cal(X) subset.eq RR^d$ be a finite set of token embeddings, and let $X^((n)) in cal(X)^n$ be a matrix of $n$ embeddings. 
 
     Define query and key matrices $Q^((n)) = phi(X^((n))) in RR^(n times k), quad K^((n)) = kappa(X^((n))) in RR^(n times k),$
@@ -360,7 +360,7 @@ In the supercritical regime $gamma > 1/(1 - p)$, the self-attention term dominat
 In, @t31 we generalize this setup beyond the symmetric simplex setting by allowing pairwise inner products to vary within fixed bounds. We show that the attention operator acts asymptotically as a contraction in the subcritical regime and as an identity in the supercritial regime. @c31 provides exact results for the limiting inner product for the simplex case. These results demonstrate that the scaling $beta = Theta(log n)$ is intrinsic to the behaviour of attention mechanisms rather than an artifact of the simplex geometry.
 
 
-#theorem("Phase Transition in Attention Geometry")[
+#stheorem(name: "Phase Transition in Attention Geometry", source: [@chen2025critical])[
     Assume there exist constants $q_1, q_2 > 0$ and $p_1, p_2 in (0, 1)$ such that $q_1 <= norm(x_i)^2 <= q_2$ and $p_1 <= ip(u_i, u_j) <= p_2$ for any $i != j$, with $p_1 = ip(u_i, u_j)$ for some $i, j$. Let $beta = gamma log n$ with $gamma > 0$.
 
     1. If $gamma < 1/(1 - p_1)$ then there is a constant $epsilon > 0$ depending on $alpha, p_2, q_1, q_2$ such that
@@ -714,7 +714,7 @@ In some sense, this provides a reason for why residual connections are crucical 
 
 == Backpropagation
 
-#theorem("Phase Transition in Attention Gradient")[
+#stheorem(name: "Phase Transition in Attention Gradient", source: [@chen2025critical])[
     Assume there exist constants $q_1, q_2 > 0$ and $p_1, p_2 in (0, 1)$ such that $q_1 <= norm(x_i)^2 <= q_2$ and $p_1 <= ip(u_i, u_j) <= p_2$ for any $i != j$, with $p_1 = ip(u_i, u_j)$ for some $i, j$. Let $beta = gamma log n$ with $gamma > 0$.
 
     1. If $gamma < 1/(1 - p_1)$,
@@ -1102,11 +1102,12 @@ We now generalize to a model that resembles the attention mechanism more closely
 obtained from the multiplication
 
 $
-    S = [((X W_Q)^T (X W_K))/sqrt(d)],
+    S = [((X W_Q) (X W_K)^T)/sqrt(d)],
 $
-where $X in RR^(n times d)$ is a random matrix with i.i.d. $cal(N)(0, 1)$ components, and $W_Q, W_K in RR^(d times d)$ are random matrices with i.i.d. $cal(N)(0, 1\/d)$ entries. Define the _token similarity_ $q_(i j) = ip(s_i, s_j)\/d$.
+where $X in RR^(n times d)$ is a random matrix with i.i.d. $cal(N)(0, 1)$ components, and $W_Q, W_K in RR^(d times d)$ are random matrices with i.i.d. $cal(N)(0, 1\/d)$ entries.
 
 In this context, $S$ is a random object representing what score values may be produced by a randomly initialized model prior to training. For this reason, the score scaling $beta$ may equivalently be viewed as a scaling factor for the variance of i.i.d. $cal(N)(0, beta\/d)$ entries in the $W_Q$ and $W_K$ matrices. This analysis is therefore also particularly useful in the effort of counteracting pathological behaviour at the beginning of training, which could in the worst case lead to an untrainable model.
+Since the methods used in this section are closely related to those of statistical physics, we will rely on asymptotic approximations and high-probability concentration results, as opposed to the exact results found in other sections.
 
 #definition[
     Given attention weights $a_i in RR^n$, define the _inverse participation ratio_
@@ -1119,17 +1120,47 @@ $
     Y^((2))_(i) = 1 / ("effective support size of" a_i),
 $
 since $Y^((2))_(i) = 1$ if $a_i$ has a single coordinate with value $1$, and $Y^((2))_i = 1/n$ if $a_i$ is uniform. We are specifically interested in a scaling $beta$ that avoids these two cases in the large-$n$ limit.
-#theorem[
-    Under the scaling $beta_n = gamma sqrt(log n)$ where $gamma > 0$ is a constant, the inverse participation ratio satisfies
+#stheorem(name: "Phase Transition for IPR", source: [@giorlandino2025failure])[
+    Under the scaling $beta_n = gamma sqrt(log n)$ where $gamma > 0$ is a constant, the inverse participation ratio approximately satisfies
     $
         limn EE[Y_i^((2)) (beta)]
             = cases(
                 0"," quad &gamma < sqrt(2)",",
-                1 - sqrt(2)/gamma"," quad &gamma > sqrt(2).
+                1 - sqrt(2)/gamma"," quad &gamma > sqrt(2),
             )
     $
-    Thus, under this model, the critical scaling is of order $beta asymp sqrt(log n)$ with phase transition at $beta = gamma sqrt(log n)$.
+    given that the embedding dimension $d$ is sufficiently large.
+    Thus, under this model, the critical scaling is of order $beta asymp sqrt(log n)$ with phase transition at $beta = sqrt(2 log n)$.
 ]<theorem-correlated>
+
+#lemma("Concentration of Token Similarity")[
+    For two rows $x_i$, $x_j$ of the embedding matrix $X$, define the _token similarity_ $q_(i j) = ip(x_i, x_j)\/d$. Then,
+    $
+        q_(i j) ->^p
+            cases(
+                1"," quad &i = j",",
+                0"," quad &i != j.
+            )
+    $
+    In particular, we may assume approximate deterministic equality for large $d$, such as those used in modern language models.
+]<concentration>
+
+#proof[
+    For $i = j$, we have
+    $
+        q_(i i) = 1/d sumo(k, d) (x_i)_k ^2.
+    $
+    By the Law of Large Numbers, $q_(i i) ->^p EE[(x_i)_1^2] = 1$, since $(x_i)_k tilde^("i.i.d.") cal(N)(0, 1).$ For $i != j$,
+    $
+        EE[q_(i j)] = 1/d sumo(k, d) EE[(x_i)_k (x_j)_k] = 0,
+    $
+    and
+    $
+        "Var"(q_(i j)) = 1/d dot EE[(x_i)_k^2 (x_j)_k^2] = 1/d.
+    $
+    By Chebyshev's Inequality, $q_(i j) -> 0$. Moreover, sharper concentration results (see @vershynin2026) imply that these quantities are tightly concentrated with high probability for large $d$.
+]
+
 
 #lemma("Stein's Lemma")[
     Let $Z = (Z_1, ..., Z_n)^T tilde cal(N)(0, V)$ and $g: RR^n -> RR$ such that $g in C^1$ and $EE[norm(g(Z))], EE[norm(nabla g(Z))] < infinity$. Then,
@@ -1209,7 +1240,7 @@ since $Y^((2))_(i) = 1$ if $a_i$ has a single coordinate with value $1$, and $Y^
         &= (sum_(a=1)^d EE[(W_Q)_(k a)^2] (x_i)_a^2) (sum_(b=1)^d EE[(W_K)_(k a)^2] (x_j)_b^2)\
         &= 1/d^2 norm(x_i)^2 norm(x_j, size: #80%)^2\
     $
-    Since the $x_k$'s are i.i.d. Gaussian in $RR^d$, $norm(x_k)^2/d ->^p 1$ by concentration of norms. By the Central Limit Theorem, $s_(i j) ->^d N(0, beta)$. 
+    We have that $norm(x_k)^2/d ->^p 1$ by @concentration, hence by the Central Limit Theorem, $s_(i j) ->^d cal(N)(0, 1)$. 
     A similar calculation for covariance yields
 
     $
@@ -1250,7 +1281,7 @@ since $Y^((2))_(i) = 1$ if $a_i$ has a single coordinate with value $1$, and $Y^
             beta sumjn sumkn "Cov"(s_(i j), s_(i k)) EE[pddv(a_(i j), s_(i k))]\
             &= beta^2 sumjn sumkn q_(i i) q_(j k) EE[h beta a_(i j) (delta_(j k) - a_(i k))].
     $
-    Define $Y_(i, h)^((2)) = sum_(j = 1)^n a_(i j)^2$. We use the fact that $q_(i i) ->^p 1$ and $q_(i j) ->^p 0$ for $i != j$ in high dimensions. This gives
+    Define $Y_(i, h)^((2)) = sum_(j = 1)^n a_(i j)^2$. By @concentration, $q_(i i) ->^p 1$ and $q_(i j) ->^p 0$ for $i != j$. This gives
     $ 
         pdv(h) Phi_n (beta, h) 
             &approx beta^2 h sumjn sumkn
@@ -1354,7 +1385,35 @@ In general, the replica method is not fully mathematically rigorous, especially 
                 1 - sqrt(2)/gamma"," quad &gamma > sqrt(2).
             )
     $
-    
+]
+
+#corollary("Update Average Cosine Similarity")[
+    Define the _updated token matrix_
+    $
+        Y = A X W_V,
+    $
+    where $A = "softmax"(S)$, applied row-wise, and $W_V in RR^(d times d)$ is a random matrix with i.i.d. $cal(N)(0, 1\/d)$ entries. For sufficiently large embedding dimension $d$, the updated token similarity matrix approximately satisfies
+    $
+        limn EE[(Y Y^T)/d] = cases(
+            0"," quad &gamma < sqrt(2)",",
+            (1 - sqrt(2)/gamma) I_d"," quad &gamma > sqrt(2).
+        )
+    $
+    In other words, $norm(y_i)^2 \/d$
+
+    ...
+]
+#proof[
+    First observe that $EE[W_V W_V^T] = I_d$ by a simple calculation and for large $d$, $X X^T approx I_n$ by @concentration.
+    Since $W_V$ and $a_i$ are indepdendent,
+    $
+        EE[ip(y_i, y_j)/d] 
+            &= 1/d dot EE[(a_i X W_V) (a_j X W_V)^T]\
+            &= 1/d dot EE[a_i X thin EE[W_V W_V^T] X^T a_j^T]\
+            &approx EE[a_i a_j^T]\
+            = delta_(i j) Y^(2)_i
+    $
+
 ]
 
 

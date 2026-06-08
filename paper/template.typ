@@ -99,6 +99,19 @@
   padding: thmsettings.padding,
 )
 
+#let stheorem(body, source: none, name: none) = {
+    theorem(name)[
+        #stack(
+        spacing: -0.5em,
+        body,
+
+        align(right)[
+            #text(size: 9pt)[#source]
+        ]
+    )
+  ]
+}
+
 #let lemma = thmbox(
   "theorem", // identifier
   text("Lemma"), // head
