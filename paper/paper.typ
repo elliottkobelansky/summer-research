@@ -243,7 +243,7 @@ This is done by applying the unembedding matrix $W_U in RR^(|cal(X)|times d)$ to
 $
     Y = "softmax"(W_U E + b_U bold(1)^T),
 $
-where $"softmax"$ is applied column-wise. Note that each column $arrow(Y)_i$ isthe prediction for the next token at each position $i$ in the input sequence, ignoring tokens that come after position $i$. 
+where $"softmax"$ is applied column-wise. Note that each column $arrow(Y)_i$ is the prediction for the next token at each position $i$ in the input sequence, ignoring tokens that come after position $i$. 
 This is useful for model training purposes, but for generation purposes we only use the distribution $arrow(Y)_n$ corresponding to the last input token.
 
 == Summary
@@ -313,7 +313,9 @@ Hence, any non-degenerate scaling $beta$ must depend on $n$, i.e. $beta = beta_n
 
 ...
 
-= Simplex-Like Geometry
+= Simplex-Like Geometry <sec:simplex>
+
+The following is an overview of results and proofs found in @chen2025critical with intermediate steps filled in.
 
 == Setup
 
@@ -1086,7 +1088,7 @@ If $s_m$ is the maximum score, the maximum attention weight is given by
 $
     a_m = e^(beta s_m) / (sumkn e^(beta s_k)) = (1 + (sum_(k != m) e^(beta s_k))/e^(s_m))^(-1)
 $
-For large $n$, by the Law of Large Numbers, we have
+For large $n$, we expect
 $
     sum_(k != m) e^(beta s_k) tilde n EE[e^(beta s_1)] = n e^(beta^2\/2) = exp(log n + beta^2 \/ 2).
 $
@@ -1094,7 +1096,7 @@ It can also be shown that $s_m tilde sqrt(2 log n)$ @leadbetter1983extremes and 
 $
     log n + beta^2/2 = beta sqrt(2 log n),
 $
-which yields $beta_n = sqrt(2 log n)$ after solving. Although an asymptotic argument, this identifies $beta_n asymp sqrt(log n)$ as the critical scaling factor under this i.i.d. assumption.
+which yields $beta_n = sqrt(2 log n)$ after solving. Although a rough asymptotic argument, this identifies $beta_n asymp sqrt(log n)$ as the critical scaling factor under this i.i.d. assumption.
 
 == Correlated Entries
 
@@ -1419,6 +1421,8 @@ In general, the replica method is not fully mathematically rigorous, especially 
 
 = Deterministic Score Theory
 
+This section contains results found in @hayase2026.
+
 == Scaling Order
 
 We now concern ourselves with a fixed score vector $s in RR^n$. 
@@ -1480,7 +1484,7 @@ This is clearly well-defined on finite $n$ since $N(t) <= n$. However, we immedi
     $
 ]
 
-#theorem[
+#stheorem(name: "Sequence Collapse Criterion", source: [@hayase2026])[
     For each $n >= 2$, let $s^((n)) in RR^n$ be a score vector of length $n$ with corresponding upper tail accumulation scale $Lambda_n$. For any positive sequence $(beta_n)$,
 
     1. If $beta_n \/ Lambda_n -> 0$, then _top-two collapse_ holds, i.e.
@@ -1572,7 +1576,7 @@ This establishes $Lambda_n$ as the order of the critical scaling for $s^((n))$.
 Denote $a_n asymp b_n$ if there exists constants $c, C > 0$ such that for large enough $n$, $c b_n <= a_n <= C b_n$.
 
 #corollary("Critical Scaling Exponent")[
-    Let $xi_Lambda > 0$. If $Lambda_n asymp (log n)^xi$, then $xi$ is unique and any non-collapsing scaling $beta_n$ must have $beta_n asymp (log n)^(xi_Lambda)$.
+    Let $xi_Lambda > 0$. If $Lambda_n asymp (log n)^(xi_Lambda)$, then $xi_Lambda$ is unique and any non-collapsing scaling $beta_n$ must have $beta_n asymp (log n)^(xi_Lambda)$.
 
     Furthermore, if $alpha_n asymp (log n)^(xi_alpha)$ and $Delta_Lambda^((n)) asymp (log n)^(xi_Delta)$, then
     $
@@ -1581,7 +1585,7 @@ Denote $a_n asymp b_n$ if there exists constants $c, C > 0$ such that for large 
 ]<c511>
 
 #proof[
-    If $Lambda_n asymp (log n)^(xi')$ for $xi' > 0$, then $1 asymp (log n)^(xi - xi')$, which is only possible when $xi = xi'$. For a non-collapsing scaling, we must have $beta_n \/ Lambda_n asymp 1$, which is only possible if $beta_n asymp (log n)^xi$.
+    If $Lambda_n asymp (log n)^(xi')$ for $xi' > 0$, then $1 asymp (log n)^(xi_Lambda - xi')$, which is only possible when $xi_Lambda = xi'$. For a non-collapsing scaling, we must have $beta_n \/ Lambda_n asymp 1$, which is only possible if $beta_n asymp (log n)^(xi_Lambda)$.
 
     Since $Lambda_n = (alpha_n log n)\/Delta_Lambda^((n))$, 
     $
@@ -1591,7 +1595,7 @@ Denote $a_n asymp b_n$ if there exists constants $c, C > 0$ such that for large 
     and by uniqueness of this exponent must mean that $xi_Lambda = xi_alpha - xi_Delta + 1$.
 ]
 
-Consider the Simplex case from SECTION PREVIOUS. For any row $i$ of the $n times n$ similarity matrix,
+Consider the Simplex case from @sec:simplex. For any row $i$ of the $n times n$ similarity matrix,
 
 $
     a_(i j) = cases(q", " i = j",", p", " i != j.)
