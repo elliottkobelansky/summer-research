@@ -260,6 +260,8 @@ From a scaling perspective, there are many issues related to naively increasing 
 
 == Insufficiency of Standard Softmax
 
+=== Single Head
+
 Consider the standard softmax function applied to a sequence of score vectors $(s^((n)))$ such that $s^((n)) in RR^n$ for all $n$ with uniformly bounded components $m <= s_j^((n)) <= M$ for $m, M in RR$. For a fixed $j$, 
 
 $
@@ -272,6 +274,22 @@ $
 Then, we have that $"softmax"(s^((n)))_j = Theta(1/n)$ for all $j$ and thus $norm("softmax"(s^((n))))_inf -> 0$ as $n -> inf$. 
 Heuristically, the entire softmax vector becomes diffuse and "true" attention, in the sense of assigning a non-vanishing proportion of mass to a distringuished set of coordinates, cannot emerge.
 Therefore, any nontrivial attention mechanism in the large-$n$ limit must be driven by score fluctuations whose scale grows with $n$, allowing certain coordinates to overcome the $Theta(n)$ growth of the softmax normalizing constant. Because attentions scores are usually designed to be probabilistically $O(1)$, this is naturally a problem when considering large-$n$ inputs.
+
+As an example, consider the sequence of vectors $s^((n)) = (3, -2, ..., -2)$ with first component $3$ and all other components $-2$, noting that these are clearly uniformly bounded. @32 shows that not only does $a_max$ decrease to 0 relatively quickly, but the entropy of the distribution quickly approaches the entropy of the uniform distribution. This is refered to as _rank collapse_, since it is the behaviour obtained when a rank one matrix is used in the attention calculation.
+
+#figure(
+    image("entropy_softmax_plot.png", width: 45%),
+    caption: [Rank collapse on scores with bounded components.],
+)<32>
+
+Even if scores are not uniformly bounded, the nature of the growth of the scores can lead to another failure mode known as _entropy collapse_. This occurs when the maximum component grows too quickly with respect to the rest of the scores, leading softmax to behave as a "hardmax" for large $n$, illustrated in @EC for the sequence $t^((n)) = 1/3 log(n) s^((n))$.
+
+#figure(
+    image("entropy_softmax_plot3.png", width: 45%),
+    caption: [Entropy collapse on scores with growing components.],
+)<EC>
+
+=== Transformer Setting
 
 #stheorem(name: "Long-Context Attention Collapse", source: [@velickovic2024softmax])[
     Let $cal(X) subset.eq RR^d$ be a finite set of token embeddings, and let $X^((n)) in cal(X)^n$ be a matrix of $n$ embeddings. 
@@ -309,9 +327,51 @@ however this suffers the exact same problem as standard softmax when scores are 
 $
     e^(beta(m - M))/n <= "softmax"(s)_j <= e^(beta (M - m)) / n.
 $
-Hence, any non-degenerate scaling $beta$ must depend on $n$, i.e. $beta = beta_n$. 
+Hence, any non-degenerate scaling $beta$ must depend on $n$, i.e. $beta = beta_n$. The _scalable softmax_ function
 
-...
+$
+    "ssmax"(z)_j = (e^((s p_n + b )z_j))/(sumkn e^((s p_n + b) z_k))
+$
+is proposed in @nakanishi2025scalable,
+where $s$ and $b$ are scalar learned parameters that are unique to each attention layer and head, and $p_n$ is a learnable parameter shared across all layers and heads, depending only on the input vector size $n$. They train this scalable softmax on a standard model and find a relationship fitting $p_n tilde log n$. For a given attention layer and head (i.e. fixed constants), this corresponds to $beta_n tilde log n$ as proposed in our original setup.
+
+According to these results, consider the scaling $beta_n = gamma log n$, for some $gamma > 0$, and assume that $s$ has a unique maximum $z_"max" > z_"2nd"$.
+On one hand, we have
+$
+    ||"softmax"(z)||_inf
+        = n^(gamma z_"max")/(sumkn n^(gamma z_k)) 
+        <= (n^(gamma z_"max"))/((n-1) n^(gamma z_"min") + n^(gamma z_"max"))
+        = 1/((n - 1) n^(-gamma(z_"max" - z_"min")) + 1).
+$
+On the other hand,
+$
+    ||"softmax"(z)||_inf
+        >= (n^(gamma z_"max"))/((n-1) n^(gamma z_"2nd") + n^(gamma z_"max"))
+        = 1/((n - 1) n^(-gamma(z_"max" - z_"2nd")) + 1).
+$
+If $gamma > 1/(z_"max" - z_"min")$, we see that $||"softmax"(z)||_inf -> 1$, whereas if $gamma < 1/(z_"max" - z_"2nd")$,
+then $||"softmax"(z)||_inf -> 0$. 
+
+This is one example showing that even if $beta_n$ is of correct asymptotic order, constant multiples can still induce degenerate behaviour. Thus, $beta_n$ is quite fragile, which motivates the study of attention scaling beyond the "quick fix" of adding a learnable parameter to the model.
+
+Returning to the example $s^((n)) = (3, -2, -2, ..., -2)$, we apply the scaling $beta_n = 0.2 log n$. @33 shows that that this scaling indeed appears to avoid the issues discussed above.
+
+#figure(
+    image("entropy_softmax_plot1.png", width: 53%),
+    caption: [Non-degenerate behaviour of scaled softmax on $s^((n))$.]
+)<33>
+
+It is useful to rederive the critical scaling of this simple example as 
+
+$
+    ||"softmax"(z)||_inf = e^(3 beta)/(
+            ub(e^(3 beta), "max") + ub((n - 1)e^(-2 beta), "bulk"))
+            = (1 + e^(-5 beta + log n) + o(e^(-5 beta + log n)))^(-1),
+$
+which must have $beta = 0.2 log n$ in order to avoid convergence to either $0$ or $1$.
+
+At this point, the question remains how to determine an effective scaling $beta_n$
+ in more general contexts, and whether any universality properties hold. Since transformer inputs lie between deterministic and fully random regimes, a completely general analysis seems intractable at the moment, and it is natural to first study simplified models that capture the essential structure of the attention mechanism before addressing more realistic settings.
 
 = Simplex-Like Geometry <sec:simplex>
 
@@ -340,7 +400,6 @@ $
 $
 where $alpha >= 0$ is the strength of the residual connection. Geometrically, $alpha$ interpolates between purely attention-driven dynamics and identity-preserving behaviour.
 
-
 == Critical Scaling
 
 We are interested in how the attention scaling $beta$ affects the geometry of the token embeddings, namely how pairwise angles evolve under the attention update. 
@@ -359,8 +418,7 @@ Hence, the dominant contribution to $Z_i$ depends on the comparison between the 
 In the subcritical regime $gamma < 1/(1 - p)$, attention weights become asymptotically uniform, so each token moves toward the global average. 
 In the supercritical regime $gamma > 1/(1 - p)$, the self-attention term dominates, and attention operator converges to the identity map. In the critical regime $gamma = 1/(1 - p)$, both terms are balanced, leading to nontrivial dynamics as desired for an effective attention layer.
 
-In, @t31 we generalize this setup beyond the symmetric simplex setting by allowing pairwise inner products to vary within fixed bounds. We show that the attention operator acts asymptotically as a contraction in the subcritical regime and as an identity in the supercritial regime. @c31 provides exact results for the limiting inner product for the simplex case. These results demonstrate that the scaling $beta = Theta(log n)$ is intrinsic to the behaviour of attention mechanisms rather than an artifact of the simplex geometry.
-
+In @t31 we generalize this setup beyond the symmetric simplex setting by allowing pairwise inner products to vary within fixed bounds. We show that the attention operator acts asymptotically as a contraction in the subcritical regime and as an identity in the supercritial regime. @c31 provides exact results for the limiting inner product for the simplex case. Although @chen2025critical claims that these results demonstrate that the scaling $beta = Theta(log n)$ is intrinsic to the behaviour of attention mechanisms rather than an artifact of the simplex geometry, we will later see that this in fact not the case.
 
 #stheorem(name: "Phase Transition in Attention Geometry", source: [@chen2025critical])[
     Assume there exist constants $q_1, q_2 > 0$ and $p_1, p_2 in (0, 1)$ such that $q_1 <= norm(x_i)^2 <= q_2$ and $p_1 <= ip(u_i, u_j) <= p_2$ for any $i != j$, with $p_1 = ip(u_i, u_j)$ for some $i, j$. Let $beta = gamma log n$ with $gamma > 0$.
@@ -375,7 +433,19 @@ In, @t31 we generalize this setup beyond the symmetric simplex setting by allowi
     $
 ]<t31>
 
-We will first prove a series of lemmas.
+In the subcritical regime, the value of $epsilon$ could in theory be very small, and thus the theorem should be interpreted as a qualitative phase transition rather than a quantitative improvement guarantee in this regime. In the supercritical regime, we obtain a much stronger result.
+Although the randomly sampled vectors found in @fig-comparison do not necessarily satisfy the assumptions of @t31,we still observe a clear separation between the subcritical (left) and supercritical (right) regimes, consistent with the qualitative behaviour described by the theorem.
+
+#figure(
+  grid(
+    columns: (1fr, 1fr),
+    image("underdamped.png", width: 100%),
+    image("overdamped.png", width: 100%),
+  ),
+  caption: [Behaviour of geometric attention on random vectors.]
+)<fig-comparison>
+
+We will first prove a series of lemmas before proving @t31.
 #lemma[
     For any $i in {1, ..., n}$, we have
     $
