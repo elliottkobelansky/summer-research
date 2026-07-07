@@ -144,6 +144,60 @@ Given a query, we would like these scores to correspond to weights indicating th
 $
    A <- "softmax"(S).
 $
+
+#let score-table = table(
+  columns: 5,
+  align: center,
+  inset: 5pt,
+  stroke: none,
+
+  [], [*The*], [*dog*], [*sat*], [*down*],
+  [*The*], [1.1], [-0.2], [-0.8], [-0.5],
+  [*dog*], [-0.3], [2.4], [3.6], [0.7],
+  [*sat*], [-0.7], [1.8], [2.9], [1.2],
+  [*down*], [-0.4], [0.6], [1.3], [2.1],
+
+  table.hline(y: 1),
+  table.vline(x: 1),
+)
+
+#let weight-table = table(
+  columns: 5,
+  align: center,
+  inset: 5pt,
+  stroke: none,
+
+  [], [*The*], [*dog*], [*sat*], [*down*],
+  [*The*], [0.61], [0.04], [0.01], [0.04],
+  [*dog*], [0.15], [0.56], [0.62], [0.14],
+  [*sat*], [0.10], [0.31], [0.30], [0.24],
+  [*down*], [0.14], [0.09], [0.06], [0.58],
+
+    table.hline(y: 1),
+    table.vline(x: 1),
+)
+
+#align(center)[
+  #grid(
+    columns: (auto, auto, auto),
+    column-gutter: 1em,
+
+    [
+      #score-table
+      #align(center)[Scores $S$]
+    ],
+
+    [
+        #align(horizon)[$ mapsto^"softmax"$]
+    ],
+
+    [
+      #weight-table
+      #align(center)[Weights $A$]
+    ],
+  )
+]
+
 This completes the conversion of token embeddings into a normalized distribution over which tokens are most relevant to each other.
 
 Returning to the original embeddings $E$, let $W_V in RR^(d times d)$. we compute the _value matrix_
@@ -197,10 +251,21 @@ $
      E_"out" <- E + Delta E.
 $
 
-=== Masking and LayerNorm
+=== Masking
 
-MASKING
-LAYERNORM
+In self-attention, every token can attend to every other token. However, in
+many settings including language modelling, we wish to restrict which tokens are allowed to interact. In most generality, if we wish to forbid a token from interacting with another, we can set the corresponding entry in $S$ to $-infinity$, which leads to a corresponding entry in $A$ to be 0. In practice, this is done by adding a masking matrix $M$ with a very large negative integer in the desired entries and $0$ elsewhere to $E$.
+
+In the context of language modelling, this is espeically useful in order to parellelize training of th model. For example, the sequence "the dog sat down" contains four sub-examples:
+
+1. [empty context] $->$ the,
+2. the $->$ dog,
+3. the dog $->$ sat,
+4. the dog sat $->$ down.
+
+Thus, an appropriate mask for this purpose would be lower triangular, in order to prohibit tokens from communicating with tokens beyond their current position.
+
+...
 
 == Feed Forward Layer
 
@@ -243,7 +308,7 @@ This is done by applying the unembedding matrix $W_U in RR^(|cal(X)|times d)$ to
 $
     Y = "softmax"(W_U E + b_U bold(1)^T),
 $
-where $"softmax"$ is applied column-wise. Note that each column $arrow(Y)_i$ is the prediction for the next token at each position $i$ in the input sequence, ignoring tokens that come after position $i$. 
+where $"softmax"$ is applied column-wise. Note that each column $arrow(Y)_i$ is the prediction for the next token at each position $i$ in the input sequence. If lower triangular masking is applied, this allows for $n$ different predictions on the $n$ different sub-examples. 
 This is useful for model training purposes, but for generation purposes we only use the distribution $arrow(Y)_n$ corresponding to the last input token.
 
 == Summary
@@ -271,7 +336,7 @@ as well as
 $
     "softmax"(s^((n)))_j >= e^(m - M)/n.
 $
-Then, we have that $"softmax"(s^((n)))_j = Theta(1/n)$ for all $j$ and thus $norm("softmax"(s^((n))))_inf -> 0$ as $n -> inf$. 
+Then, we have that $"softmax"(s^((n)))_j = Theta(1/n)$ for all $j$ and thus the maximum attention weight $a_"max"$ goes to 0 as $n$ goes to $inf$. 
 Heuristically, the entire softmax vector becomes diffuse and "true" attention, in the sense of assigning a non-vanishing proportion of mass to a distringuished set of coordinates, cannot emerge.
 Therefore, any nontrivial attention mechanism in the large-$n$ limit must be driven by score fluctuations whose scale grows with $n$, allowing certain coordinates to overcome the $Theta(n)$ growth of the softmax normalizing constant. Because attentions scores are usually designed to be probabilistically $O(1)$, this is naturally a problem when considering large-$n$ inputs.
 
@@ -282,7 +347,7 @@ As an example, consider the sequence of vectors $s^((n)) = (3, -2, ..., -2)$ wit
     caption: [Rank collapse on scores with bounded components.],
 )<32>
 
-Even if scores are not uniformly bounded, the nature of the growth of the scores can lead to another failure mode known as _entropy collapse_. This occurs when the maximum component grows too quickly with respect to the rest of the scores, leading softmax to behave as a "hardmax" for large $n$, illustrated in @EC for the sequence $t^((n)) = 1/3 log(n) s^((n))$.
+Even if scores do grow with $n$, the nature of the growth of the scores can lead to another failure mode known as _entropy collapse_. This occurs when the maximum component grows too quickly with respect to the rest of the scores, leading softmax to behave as a "hardmax" for large $n$, outputting a one-hot vector. This collapse is shown in @EC for the sequence $t^((n)) = 1/3 log(n) s^((n))$.
 
 #figure(
     image("entropy_softmax_plot3.png", width: 45%),
@@ -323,7 +388,7 @@ An initial instict may be to introduce a fixed parameter $beta > 0$ to softmax,
 $
     "softmax"(s)_j = e^(beta s_j)/(sumkn e^(beta s_k)),
 $
-however this suffers the exact same problem as standard softmax when scores are bounded, since
+which suffers from the same issue as standard softmax when scores are bounded, since
 $
     e^(beta(m - M))/n <= "softmax"(s)_j <= e^(beta (M - m)) / n.
 $
@@ -338,37 +403,38 @@ where $s$ and $b$ are scalar learned parameters that are unique to each attentio
 According to these results, consider the scaling $beta_n = gamma log n$, for some $gamma > 0$, and assume that $s$ has a unique maximum $z_"max" > z_"2nd"$.
 On one hand, we have
 $
-    ||"softmax"(z)||_inf
+    a_"max"
         = n^(gamma z_"max")/(sumkn n^(gamma z_k)) 
         <= (n^(gamma z_"max"))/((n-1) n^(gamma z_"min") + n^(gamma z_"max"))
         = 1/((n - 1) n^(-gamma(z_"max" - z_"min")) + 1).
 $
 On the other hand,
 $
-    ||"softmax"(z)||_inf
+    a_"max"
         >= (n^(gamma z_"max"))/((n-1) n^(gamma z_"2nd") + n^(gamma z_"max"))
         = 1/((n - 1) n^(-gamma(z_"max" - z_"2nd")) + 1).
 $
-If $gamma > 1/(z_"max" - z_"min")$, we see that $||"softmax"(z)||_inf -> 1$, whereas if $gamma < 1/(z_"max" - z_"2nd")$,
-then $||"softmax"(z)||_inf -> 0$. 
+If $gamma > 1/(z_"max" - z_"min")$, we see that $a_"max" -> 1$, whereas if $gamma < 1/(z_"max" - z_"2nd")$,
+then $a_max -> 0$. This is one example showing that even if $beta_n$ is of correct asymptotic order, constant multiples can still induce degenerate behaviour. Thus, $beta_n$ is likely quite fragile in a general sense, which motivates the study of attention scaling beyond the "quick fix" of adding a learnable parameter to the model. 
 
-This is one example showing that even if $beta_n$ is of correct asymptotic order, constant multiples can still induce degenerate behaviour. Thus, $beta_n$ is quite fragile, which motivates the study of attention scaling beyond the "quick fix" of adding a learnable parameter to the model.
+Furthermore, we observe a phase transition phenomenon in $gamma$. This phenomenon occurs beyond this simple example and appears to be intrinsic to the attention mechanism, as it appears in various different models of attention, as seen in later sections. Precisely, this phase transition separates the behaviour of attention into _subcritical_ and _supercritical_ regimes, $gamma < gamma_1$ and $gamma > gamma_2$ respectively for constants $gamma_1 < gamma_2$, in which the behaviour of attention is undesirable.
+For the _critical_ regime $gamma in [gamma_1, gamma_2]$, often a single value $gamma_c = gamma_1 = gamma_2$, attention behaves as desired. In terms of manually tuning this scaling, we see that this must proceed in two stages: determining the order of the scaling $beta_n$ followed by tuning the constant multiple $gamma$.
 
-Returning to the example $s^((n)) = (3, -2, -2, ..., -2)$, we apply the scaling $beta_n = 0.2 log n$. @33 shows that that this scaling indeed appears to avoid the issues discussed above.
+Returning to the example $s^((n)) = (3, -2, -2, ..., -2)$, we apply the scaling $beta_n = 0.2 log n$. As seen in figure @33, this scaling avoids rank and entropy collapse.
 
 #figure(
     image("entropy_softmax_plot1.png", width: 53%),
     caption: [Non-degenerate behaviour of scaled softmax on $s^((n))$.]
 )<33>
 
-It is useful to rederive the critical scaling of this simple example as 
+This scaling was obtained by the heuristic justification that to avoid both rank and entropy collapse, the maximum element $s_"max"$ as well as the sum of all other elements must be of the same exponential order. This reasoning extends beyond this simple case to more complex score vectors, and is a first step in ensuring proper scaling. 
 
 $
-    ||"softmax"(z)||_inf = e^(3 beta)/(
+    a_"max" = e^(3 beta)/(
             ub(e^(3 beta), "max") + ub((n - 1)e^(-2 beta), "bulk"))
             = (1 + e^(-5 beta + log n) + o(e^(-5 beta + log n)))^(-1),
 $
-which must have $beta = 0.2 log n$ in order to avoid convergence to either $0$ or $1$.
+which avoids convergence to either $0$ or $1$ (entropy and rank collapse, respectively) if $beta = 0.2 log n$, which correspond to entropy and rank collapse, respectively.
 
 At this point, the question remains how to determine an effective scaling $beta_n$
  in more general contexts, and whether any universality properties hold. Since transformer inputs lie between deterministic and fully random regimes, a completely general analysis seems intractable at the moment, and it is natural to first study simplified models that capture the essential structure of the attention mechanism before addressing more realistic settings.
@@ -434,7 +500,7 @@ In @t31 we generalize this setup beyond the symmetric simplex setting by allowin
 ]<t31>
 
 In the subcritical regime, the value of $epsilon$ could in theory be very small, and thus the theorem should be interpreted as a qualitative phase transition rather than a quantitative improvement guarantee in this regime. In the supercritical regime, we obtain a much stronger result.
-Although the randomly sampled vectors found in @fig-comparison do not necessarily satisfy the assumptions of @t31,we still observe a clear separation between the subcritical (left) and supercritical (right) regimes, consistent with the qualitative behaviour described by the theorem.
+Although the randomly sampled vectors found in @fig-comparison do not necessarily satisfy the assumptions of @t31 and the embedding dimension $d = 2$ might lead to weaker concentration results, we still observe a clear separation between the subcritical (left) and supercritical (right) regimes, consistent with the qualitative behaviour described by the theorem.
 
 #figure(
   grid(
