@@ -427,7 +427,7 @@ Returning to the example $s^((n)) = (3, -2, -2, ..., -2)$, we apply the scaling 
     caption: [Non-degenerate behaviour of scaled softmax on $s^((n))$.]
 )<33>
 
-This scaling was obtained by the heuristic justification that to avoid both rank and entropy collapse, the maximum element $s_"max"$ as well as the sum of all other elements must be of the same exponential order. This reasoning extends beyond this simple case to more complex score vectors, and is a first step in ensuring proper scaling. 
+This scaling was obtained by the heuristic justification that to avoid both rank and entropy collapse, the maximum element $s_"max"$ and the sum of all other elements must be of the same exponential order. This reasoning extends beyond this simple case to more complex score vectors, and is a first step in ensuring proper scaling. In this case, 
 
 $
     a_"max" = e^(3 beta)/(
@@ -441,7 +441,7 @@ At this point, the question remains how to determine an effective scaling $beta_
 
 = Simplex-Like Geometry <sec:simplex>
 
-The following is an overview of results and proofs found in @chen2025critical with intermediate steps filled in.
+The following is an overview of results and proofs found in @chen2025critical with intermediate steps filled in as well as further discussion.
 
 == Setup
 
