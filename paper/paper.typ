@@ -109,10 +109,43 @@ We assign each token in $cal(X)$ is assigned a unique number from $1$ to $|cal(X
 #footnote[A one-hot encoding is a vector that has a $1$ in the position corresponding to the number it represents, and $0$ everywhere else.].
 Thus, our input $X = (arrow(X)_1, ..., arrow(X)_n) in cal(X)^n$ is represented as a $|cal(X)| times n$ matrix, where each column is a one-hot encoding of a token.
 
+
 Modeling and learning are much more difficult in high-dimensional discrete spaces, as the tools of calculus are not available. Hence, we choose an _embedding dimension_ $d$ which allows for a continuous representation of token "meaning" in $RR^d$. 
 One interpretation motivating this embedding space is the idea that orthogonal directions could encode different concepts or ideas, and that linear combinations of vectors along these directions could represent the meaning of a given token.
 
-A matrix $W_E in RR^(d times abs(cal(X)))$ contains all token embeddings, where column $i$ is the embedding for token $i$. For our input $X$, the columns of the matrix multiplication $W_E X$ give the corresponding embeddings for each token. We also allow for the model to obtain information of the position of a token in the sequence. This is given by the matrix $W_P$, where column $i$ contains the encoding for position $i$. This is added to the token embeddings to obtain
+A matrix $W_E in RR^(d times abs(cal(X)))$ contains all token embeddings, where column $i$ is the embedding for token $i$. For any token $arrow(X)_i$, multiplication by this matrix gives the corresponding column of $W_E$.
+
+$
+underbrace(
+  mat(
+    0.12, -0.33, dots.h, 0.07;
+    0.54, 0.21, dots.h, -0.11;
+    dots.v, dots.down, dots.down, dots.v;
+    -0.08, 0.44, dots.h, 0.19
+  ),
+  W_E,
+)
+quad
+underbrace(
+  mat(
+    0;
+    dots.v;
+    1;
+    dots.v;
+    0
+  ),
+  arrow(X)_i,
+)
+$
+
+
+For the complete input $X$, the columns of the matrix multiplication $W_E X$ give the corresponding embeddings for each token. This process is equivalent to a lookup table.
+
+We also allow for the model to obtain information of the position of a token in the sequence. This is given by the matrix $W_P$, where column $i$ contains the encoding for position $i$. 
+Historically, this has been implemented in different ways, including hard-coding this matrix to follow a sinusoidal pattern, as in the original Transformer architecture, or learning the positional embeddings directly during training. More recent approaches incorporate positional information within the attention mechanism itself through techniques such as relative or rotary positional embeddings. Regardless of the implementation, the goal is to provide the model with information about the ordering of tokens, which would otherwise be absent from the attention mechanism. We will assume this is a learned parameter matrix.
+
+Combined with the embedding step, we compute
+
 $
     E <- W_E X + W_P,
 $
@@ -132,18 +165,20 @@ $
 $
 called the _query matrix_ and _key matrix_, respectively. Note that the columns of these matrices are transformations of embedding vectors: $arrow(Q)_i = W_Q arrow(E)_i$ and $arrow(K)_i = W_K arrow(E)_i$. The query $arrow(Q)_i$ represents what information the token is looking for from other tokens in order to refine its contextual meaning. The key $arrow(K)_i$ represents what kinds of information the token can provide to other tokens. Both these vectors are projections of their corresponding token embeddings into a shared lower-dimensional space $RR^(d_h)$, specifically used for relational matching. 
 
-To capture the extent to which the key $arrow(K)_j$ is relevant to query $arrow(Q)_i$, we compute the _attention score_ $s_(i j) = arrow(Q)_i dot arrow(K)_j$, where larger values correspond to alignment in the query-key space. Thus, the matrix
+To capture the extent to which the key $arrow(K)_i$ is relevant to query $arrow(Q)_j$, we compute the _attention score_ $s_(i j) = arrow(K)_i dot arrow(Q)_j$, where larger values correspond to alignment in the query-key space. Thus, the matrix
 
 $
-    S <- (Q^T K) / sqrt(d_h)
+    S <- (K^T Q) / sqrt(d_h)
 $
-has scaled attention score $s_(i j) \/ sqrt(d_h)$ as entry $(i, j)$. This scaling factor keeps dot-product similarity "dimension-invariant", meaning scores stay at a consistent scale regardless of head dimension. 
+has scaled attention score $s_(i j) \/ sqrt(d_h)$ as entry $(i, j)$. This scaling factor keeps dot-product similarity dimension-invariant, meaning scores stay probabilistically $O(1)$ scale regardless of head dimension and is derived assuming $W_Q$ and $W_K$ have entries with mean $0$ and variance $1\/d_h$, as is common in the initialization of models and often enforced through various normalization procedures beyond the scope of this overview.
 
 Given a query, we would like these scores to correspond to weights indicating the relative importance of each key's token for updating the embedding of the queried token. We therefore apply the softmax function column-wise to $S$ giving
 
 $
    A <- "softmax"(S).
 $
+
+The following is an example of the above step.
 
 #let score-table = table(
   columns: 5,
@@ -222,7 +257,7 @@ We wish to use multiple single-headed attention layers in parallel to allow diff
 As before, for each head, we have matrices $W_(Q)^((i)), W_(K)^((i)) in RR^(d_h times d)$ and compute
 
 $
-    A^((i)) <- "softmax"((Q^T K)/ sqrt(d_h)).
+    A^((i)) <- "softmax"((K^T Q)/ sqrt(d_h)).
 $
 Allowing for each $W_V^((i))$ matrix to have size $d times d$ would result in $h d^2$ parameters across all heads. In practice, we would like the parameter count to be comparable to $W_Q$ and $W_K$, so we force $W_V$ to have the low-rank structure
 
@@ -263,9 +298,62 @@ In the context of language modelling, this is espeically useful in order to pare
 3. the dog $->$ sat,
 4. the dog sat $->$ down.
 
-Thus, an appropriate mask for this purpose would be lower triangular, in order to prohibit tokens from communicating with tokens beyond their current position.
+An appropriate mask for this purpose needs to prohibit tokens from communicating with tokens beyond their current position. In other words, query $i$ cannot access key $j$ for any $j > i$, meaning that mask must be applied to the strictly lower triangular part.
 
-...
+#let score-table = table(
+  columns: 5,
+  align: center,
+  inset: 5pt,
+  stroke: none,
+
+  [], [*The*], [*dog*], [*sat*], [*down*],
+  [*The*], [1.1], [-0.2], [-0.8], [-0.5],
+  [*dog*], [-$inf$], [2.4], [3.6], [0.7],
+  [*sat*], [-$inf$], [$-inf$], [2.9], [1.2],
+  [*down*], [-$inf$], [$-inf$], [$-inf$], [2.1],
+
+  table.hline(y: 1),
+  table.vline(x: 1),
+)
+
+#let weight-table = table(
+  columns: 5,
+  align: center,
+  inset: 5pt,
+  stroke: none,
+
+  [], [*The*], [*dog*], [*sat*], [*down*],
+  [*The*], [1], [0.07], [0.01], [0.04],
+  [*dog*], [0], [0.93], [0.66], [0.14],
+  [*sat*], [0], [0], [0.33], [0.24],
+  [*down*], [0], [0], [0], [0.58],
+
+    table.hline(y: 1),
+    table.vline(x: 1),
+)
+
+#align(center)[
+  #grid(
+    columns: (auto, auto, auto),
+    column-gutter: 1em,
+
+    [
+      #score-table
+      #align(center)[Masked Scores $S$]
+    ],
+
+    [
+        #align(horizon)[$ mapsto^"softmax"$]
+    ],
+
+    [
+      #weight-table
+      #align(center)[Weights $A$]
+    ],
+  )
+]
+
+Although essential to include in this overview, the mathematical analysis in future sections does not apply masking. 
 
 == Feed Forward Layer
 
