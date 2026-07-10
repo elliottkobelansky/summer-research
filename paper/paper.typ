@@ -1722,7 +1722,7 @@ This is clearly well-defined on finite $n$ since $N(t) <= n$. However, we immedi
         limn H_n (beta_n) = 0,
     $
     where is the Shannon entropy of the attention weights $a^((n)) (beta_n)$.
-]
+]<scc>
 
 #proof[
     Let $r_n = beta_n \/ Lambda_n$.
@@ -1962,6 +1962,92 @@ $xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation 
     $
     and thus $cal(F) (beta_n) >= (1 - r_n)C_n$. Since $r_n -> 0$ and $C_n -> inf$, we have that $cal(F) -> inf$, which is equivalent to $cal(G) (beta_n) -> 0$ by @rank-collapse-criterion.
 ]
+
+== Deterministic Examples
+
+The following are various deterministic settings for which the above theory is applied. These may not be realistic when compared to actual transformer models, but serve as a baseline for comparison. Furthermore, the realizability of these simple examples as attention scores serve as a counterexample to the belief that the class $beta_n asymp (log n)^xi$ is universal to the critical scaling of attention.
+
+=== Linear Gaps
+
+Let 
+$
+    s_j = -(j-1)/n, quad j = 1, ..., n.
+$
+Then, $Delta_j = (j-1)/n$  and $N(t) = 1 + floor(n t)$. We wish to compute
+
+$
+    Lambda_n = sup_(t > 0) (log (1 + floor(n t)))/t.
+$
+On any interval $t in [m/n, (m+1)/n]$, the numerator is constant and thus $t$ must be taken as small as possible, namely $t = m/n$. Therefore the supremum is
+$
+    Lambda_n = sup_(m >= 1) log(1 + m)/(m\/n) = n sup_(m >= 1) log(1 + m)/m = n log 2,
+$
+since $log(1+m)/m$ is decreasing for $m >= 1$. This gives a critical scaling $beta_n asymp n$ according to @scc.
+
+We may also analyze this setting with respect to the maximum weight
+$
+    a_"max" 
+        = 1/(Z (beta_n)) 
+        = [sum_(k=0)^(n - 1) exp(-beta_n k / n)]^(-1)
+        = (1 - e^(-beta_n \/ n))/(1 - e^(-beta_n)),
+$
+where if $beta_n -> inf$ and $beta_n\/n -> lambda$ as $n -> inf$,
+
+$
+    a_"max" -> cases(
+                    0", " &lambda = 0",",
+                    1 - e^(- lambda)",   " &lambda in (0, inf)",",
+                    1", " &lambda = inf"."
+                ) 
+$
+In particular, the scaling $beta_n = n log 2$ will have maximum weight $a_"max" = 1/2$.
+
+=== Logarithmic Gaps
+
+Let
+$
+    s_j = - log(j), quad j = 1, ..., n,
+$
+so $Delta_j = log(j)$ and $N(t) = floor(e^t)$. Knowing $Lambda_n$ must occur at some integer $t$, we see that
+$
+    Lambda_n = sup_(t > 0) log(e^t)/t = 1.
+$
+
+However, notice that for $beta = 1$,
+
+$
+    a_"max" = 1/(Z (1)) = [sumkn 1/k]^(-1) tilde 1/log(n) -> 0,
+$
+but this occurs at a rate 
+
+Furthermore, the partition function exhibits phase transition behaviour
+
+$
+    Z(beta) = sumkn k^(-beta) tilde
+        cases(
+            n^(1 - beta)/(1 - beta)"," quad &beta < 1",",
+            log(n)"," quad &beta = 1",",
+            zeta(beta)"," quad &beta > 1.
+        )
+$
+
+=== Exponential Gaps
+
+$
+    Delta_j = e^j
+$
+
+=== Polynomial Gaps
+
+$
+Delta_j = j^alpha
+$
+
+=== Hierarchical Gaps
+
+$m_1$ within distance 1
+$m_2$ within distance 2
+etc
 
 #pagebreak()
 #bibliography("citations.bib", title: "References")
