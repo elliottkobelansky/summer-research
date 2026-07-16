@@ -2018,16 +2018,16 @@ The following are various deterministic settings for which the theory of @hayase
 ]
 
 
-=== Index-Dependent, Context Independent Scores
+=== Simplified Gap Structures
 
 We now consider scores $s_j^((n)) = g(j)$, where $g$ does not depend on $n$. In this case, all of the first $n$ components of the score vectors $s_j^((n))$ and $s_j^((n+1))$ are identical. We are interested in the behaviour of $Lambda_n$ with respect to $g$.
 
 #proposition[
-    Let $g$ be an increasing function such that #footnote[
+    Let $g$ be an increasing function independent of $n$ such that #footnote[
         Recall that this assumption can be made because of the shift invariance of softmax.
     ]
     $g(0) = 0$
-    and consider scores $s_j = g(j)$ for $j >= 0$, yielding gaps $Delta_j^((n)) = g(j)$. Define for $j >= 1$
+    and consider scores $s_j = -g(j)$ for $j >= 0$, yielding gaps $Delta_j^((n)) = g(j)$. Define for $j >= 1$
     $
         lambda_j = log(j)/g(j).
     $
@@ -2056,28 +2056,61 @@ $
 and hence the growth of this function depends on the inverse of $g$.
 For sub-logarithmic functions, the inverse, and hence $N(t)$ grows super-exponentially and, causing collapse in weights after softmax. In this case, scaling is necessary. For super-logarithmic functions, the inverse grows sub-exponentially and $N(t)$ grows at an appropriate weight for softmax to avoid collapse.
 
+#proposition[
+    Let $g$ be an increasing function independent of $n$ such that $g(0) = 0$ and $a_n$ a positive sequence.
+    Define scores 
+        $
+            s_j^((n)) = -a_n g(j), quad r_j^((n)) = - g(j)
+        $ 
+    and let $Lambda_n^((s))$ and $Lambda_n^((r))$ denote their corresponding upper tail accumulation scales.
+    Then,
+    $
+        Lambda_n^((s)) = 1/a_n Lambda_n^((r)).
+    $
+    More generally, if $r^((n))$ is any score sequence with $Lambda_n^((r)) < inf$ and $s^((n)) = -a_n r^((n))$, then the above holds.
+]<proprescale>
+
+#proof[
+    Observe the relation
+    $
+        N^((s)) (t) = \#{j : a_n g(j) <= t} = \#{j: g(j) <= t\/a_n} = N^((r)) (t\/a_n).
+    $
+    By a change of variables $u = t\/a_n$,
+    $
+        Lambda_n^((s)) = sup_(t>0) log(N^((s)) (t))/t = sup_(t>0) log(N^((r)) (t\/a_n))/t
+        = 1/a_n sup_(u > 0) log(N^((r)) (u))/u
+        = 1/a_n Lambda_n^((r)).
+    $
+]
+
+This proposition is of practical importance in the following setting. Consider scores $s^((n))$ whose components can be decomposed into a index dependent part $g(j)$ and a global scaling part $a_n$ such that $s^((n))_j = - a_n g(j)$. Then, this proposition applies and we immediately obtain $Lambda_n$ by first applying the sequence criterion, then scaling by $1\/a_n$.
 
 #corollary[
-    Let $b_n$ be a positive sequence. Then, the scores
+    Let $b_n$ be a positive sequence only depending on $n$. Then, the scores
     $
-        s_j^((n)) = - 1/b_n log(j)
+        s_j^((n)) = - 1/b_n log(j).
     $
     have $Lambda_n = b_n$ and the critical scaling satisfies $beta_n asymp b_n$.
 ]
 
 #proof[
-    The gaps and gap counting function are respectively
-    $
-        Delta_j = 1/b_n log(j)/n, quad N_n (t) = min(floor(e^(b_n n t)), n).
-    $
-    We reuse the same argument as in the proof of @propd to convert the supremum into a discrete maximum, which still is valid even though the scores now depend on the context length $n$. This yields
-    $
-        Lambda_n = max_(1 <= k <= n) log(k)/((log (k)) /b_n) = b_n.
-    $
-    The fact that $beta_n asymp b_n$ is the result of @scc.
+    By @propd, the scores $r^((n))_j = - log(j)$ have $Lambda_n = 1$ since $lambda_j = 1$ for all $j$. By the previous proposition, the upper tail accumulation scale for $s_j^((n))$ is $Lambda_n = b_n$. The fact that $beta_n asymp b_n$ is the result of @scc.
 ]
 
 Although potentially unrealistic in the context of real models, this shows that is possible to construct a sequence of score vectors with any desired critical scaling.
+
+#corollary[
+    Let $L_n, f(n) > 0$. If the unscaled gap sequence satisfies $Lambda_n^((r)) = Theta(L_n)$, then the rescaled scores $s^((n)) = a_n r^((n))$ with $a_n = L_n\/f(n)$ satisfy
+    $
+        Lambda_n^((s)) = Theta(f(n)).
+    $
+]
+
+#proof[
+    An immediate consequence of @proprescale.
+]
+
+=== Applied Examples
 
 
 === Linear Gaps
@@ -2114,25 +2147,6 @@ $
                 ) 
 $
 In particular, the scaling $beta_n = n log 2$ will have maximum weight $a_"max" = 1/2$.
-
-=== Logarithmic Gaps
-
-However, notice that for $beta = 1$,
-
-$
-    a_"max" = 1/(Z (1)) = [sumkn 1/k]^(-1) tilde 1/log(n) -> 0,
-$
-but this occurs at a rate significantly slower than what would be expected for standard rank collapse, $1\/n$. Hence, for any $n$, we see component-wise convergence to $0$, but not any form of convergence towards a uniform distribution. The maximum score $a_"max"$ will still be significant. Furthermore, the partition function exhibits phase transition behaviour
-
-$
-    Z(beta) = sumkn k^(-beta) tilde
-        cases(
-            n^(1 - beta)/(1 - beta)"," quad &beta < 1",",
-            log(n)"," quad &beta = 1",",
-            zeta(beta)"," quad &beta > 1",",
-        )
-$
-which, if nothing else, has an interesting connection to the Zeta function.
 
 === Exponential Gaps
 Consider Gaps

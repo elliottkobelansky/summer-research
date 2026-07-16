@@ -135,7 +135,7 @@
 )
 
 #let corollary = thmbox(
-  "corollary",
+  "theorem",
   // $arrow.hook$+" Corollary",
   text("Corollary"),//, fill: solarized.orange), // head
   //fill: solarized.gray,
