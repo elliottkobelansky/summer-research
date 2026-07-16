@@ -1963,9 +1963,122 @@ $xi_Lambda = 1$, $xi_alpha = 0$, and $xi_Delta = 0$, which satisfy the relation 
     and thus $cal(F) (beta_n) >= (1 - r_n)C_n$. Since $r_n -> 0$ and $C_n -> inf$, we have that $cal(F) -> inf$, which is equivalent to $cal(G) (beta_n) -> 0$ by @rank-collapse-criterion.
 ]
 
-== Deterministic Examples
+= Personal Work
 
-The following are various deterministic settings for which the above theory is applied. These may not be realistic when compared to actual transformer models, but serve as a baseline for comparison. Furthermore, the realizability of these simple examples as attention scores serve as a counterexample to the belief that the class $beta_n asymp (log n)^xi$ is universal to the critical scaling of attention.
+This section contains several exploratory results and experiments related to attention scaling. Given the breadth and difficulty of the subject, these investigations are necessarily limited in scope, but they helped develop intuition and identify questions worthy of further study.
+
+== Results on Scores
+
+The following are various deterministic settings for which the theory of @hayase2026 is applied. These may not be realistic when compared to actual transformer models, but serve as a baseline for comparison. Furthermore, the realizability of these simple examples as attention scores serve as a counterexample to the belief that the class $beta_n asymp (log n)^xi$ is universal to the critical scaling of attention.
+
+=== A Counterexample to Universal Poly-Logarithmic Scaling 
+
+#theorem[
+    There exists a sequence of scores $(s^((n)))$ with $s^((n)) in RR^n$ realizable as a row of an attention score matrix $S = (Q K^T)/sqrt(d_k)$ such that the upper tail accumulation scale $Lambda_n$ exhibits super-polylogarithmic growth:
+    $
+        ((log n)^xi)/Lambda_n -> 0, quad "for all" xi > 0,
+    $
+    and any scaling $beta_n$ avoiding rank collapse must grow faster than any polylogarithmic function of $n$. Consequently, the commonly observed polylogarithmic scaling class $beta_n = (log n)^xi$ is not universal to all possible attention scores.
+]<711>
+
+#proof[
+    Consider the scores given by
+    $
+        s_j^((n)) = -log(j)/n, quad j = 1, ..., n.
+    $
+    This gives corresponding gaps and gap-counting function
+    $
+        Delta_j^((n)) = log(j)/n, quad N_n (t) = min(floor(e^(n t)), n).
+    $
+    For any index $j$, $N_n (t)$ is constant on the interval $[Delta_j^((n)), Delta^((n))_(j + 1))$ and thus the maximum of $(log N_n (t)) / t$ over this interval must occur at $Delta_j^((n))$, since this quantity is strictly decreasing. The supremum therefore occurs at some index. This yields upper tail accumulation scale
+
+    $
+        Lambda_n &= sup_(t > 0) log(N_n (t)) / t \
+            &= max_(1 <= j <= n) min(log( e^(n Delta_j)), log(n))/(Delta_j)\
+            &= max_(1 <= j <= n) n dot min(log(j), log(n))/log(j)\
+            &= n.
+    $
+    Clearly, for all $xi > 0$, we have
+    $
+        ((log n)^xi)/Lambda_n = ((log n)^xi)/n -> 0.
+    $
+    Additionally, letting $beta_n = ((log n)^xi)$, the free energy
+    $
+        cal(F)(beta_n) &= log(sumjn e^(-beta_n Delta_j))\
+        &= log(sumjn e^(-(log n)^xi (log j)/n))\
+        &>= log(n e^(-(log n)^xi (log n)/n))\
+        &= log(n) - (log n)^(xi + 1)/n\
+        &-> inf.
+    $
+    By @rank-collapse-criterion, this scaling $beta_n$ yields rank collapse. For realizability, the queries $q_i = sqrt(d_k) e_1$ and keys $k_j = -log(j)/n e_1$ trivially produce scores
+    $
+        s_(i j)= (q^T k_j)/d_k = -log(j)/n,
+    $
+    and hence are realizable as a row of an attention score matrix.
+]
+
+
+=== Index-Dependent, Context Independent Scores
+
+We now consider scores $s_j^((n)) = g(j)$, where $g$ does not depend on $n$. In this case, all of the first $n$ components of the score vectors $s_j^((n))$ and $s_j^((n+1))$ are identical. We are interested in the behaviour of $Lambda_n$ with respect to $g$.
+
+#proposition[
+    Let $g$ be an increasing function such that #footnote[
+        Recall that this assumption can be made because of the shift invariance of softmax.
+    ]
+    $g(0) = 0$
+    and consider scores $s_j = g(j)$ for $j >= 0$, yielding gaps $Delta_j^((n)) = g(j)$. Define for $j >= 1$
+    $
+        lambda_j = log(j)/g(j).
+    $
+    1. If $lambda_j$ attains a finite maximum at index $j_0$, then for large enough $n$, the upper tail accumulation scale eventually satisfies $Lambda_n = lambda_j_0 = O(1)$.
+    2. If $lambda_j -> C in [0, inf)$ as $j -> inf$, then $Lambda_n = O(1)$.
+    3. If $lambda_j$ is increasing and $lambda_j -> inf$ and $j -> inf$, then $Lambda_n = lambda_n$.
+]<propd>
+
+#proof[
+    First, observe that for any integer $k$, $N_n (t) = k$ if and only if $g(k) <= t < g(k + 1)$. As in the proof of @711, $N_n (t)$ is constant on intervals $[g(k), g(k+1))$, and thus $Lambda_n$ is necessarily attained at some left endpoint $g(k)$. Thus,
+    $
+        Lambda_n = max_(1 <= k <= n) log(k)/g(k) = max_(1 <= k <= n) lambda_k.
+    $
+    1. Since $lambda_j$ attains a finite maximum, then necessarily $Lambda_n = lambda_(j_0)$ eventually.
+    2. Because $lambda_j -> C$ as $j -> infinity$, $Lambda_n$ is bounded by a basic property of sequences.
+    3. Since $lambda_j$ is increasing, necessarily $Lambda_n = lambda_n$ for all $n$.
+]
+
+This proposition identifies $g(j) = log(j)$ as the boundary between bounded and divergent upper-tail accumulation scales $Lambda_n$. Indeed, if $g(j) = log(j)$, then $lambda_j = 1$, so $Lambda_n = 1$. However, if $g(j) = (log j)^(1 - epsilon)$ then $lambda_n = (log n)^epsilon -> inf$ and hence $Lambda_n = (log n)^epsilon$. 
+Note that this is not related to any discussion of the proposed attention scaling $beta_n asymp log n$.
+
+Furthermore, in this context, we observe that the gap counting function is given by
+$
+    N(t) = \#{j : g(j) <= t} = \#{j : j <= g^(-1)(t)} = min(floor(g^(-1)(t)), n),
+$
+and hence the growth of this function depends on the inverse of $g$.
+For sub-logarithmic functions, the inverse, and hence $N(t)$ grows super-exponentially and, causing collapse in weights after softmax. In this case, scaling is necessary. For super-logarithmic functions, the inverse grows sub-exponentially and $N(t)$ grows at an appropriate weight for softmax to avoid collapse.
+
+
+#corollary[
+    Let $b_n$ be a positive sequence. Then, the scores
+    $
+        s_j^((n)) = - 1/b_n log(j)
+    $
+    have $Lambda_n = b_n$ and the critical scaling satisfies $beta_n asymp b_n$.
+]
+
+#proof[
+    The gaps and gap counting function are respectively
+    $
+        Delta_j = 1/b_n log(j)/n, quad N_n (t) = min(floor(e^(b_n n t)), n).
+    $
+    We reuse the same argument as in the proof of @propd to convert the supremum into a discrete maximum, which still is valid even though the scores now depend on the context length $n$. This yields
+    $
+        Lambda_n = max_(1 <= k <= n) log(k)/((log (k)) /b_n) = b_n.
+    $
+    The fact that $beta_n asymp b_n$ is the result of @scc.
+]
+
+Although potentially unrealistic in the context of real models, this shows that is possible to construct a sequence of score vectors with any desired critical scaling.
+
 
 === Linear Gaps
 
@@ -2004,50 +2117,50 @@ In particular, the scaling $beta_n = n log 2$ will have maximum weight $a_"max" 
 
 === Logarithmic Gaps
 
-Let
-$
-    s_j = - log(j), quad j = 1, ..., n,
-$
-so $Delta_j = log(j)$ and $N(t) = floor(e^t)$. Knowing $Lambda_n$ must occur at some integer $t$, we see that
-$
-    Lambda_n = sup_(t > 0) log(e^t)/t = 1.
-$
-
 However, notice that for $beta = 1$,
 
 $
     a_"max" = 1/(Z (1)) = [sumkn 1/k]^(-1) tilde 1/log(n) -> 0,
 $
-but this occurs at a rate 
-
-Furthermore, the partition function exhibits phase transition behaviour
+but this occurs at a rate significantly slower than what would be expected for standard rank collapse, $1\/n$. Hence, for any $n$, we see component-wise convergence to $0$, but not any form of convergence towards a uniform distribution. The maximum score $a_"max"$ will still be significant. Furthermore, the partition function exhibits phase transition behaviour
 
 $
     Z(beta) = sumkn k^(-beta) tilde
         cases(
             n^(1 - beta)/(1 - beta)"," quad &beta < 1",",
             log(n)"," quad &beta = 1",",
-            zeta(beta)"," quad &beta > 1.
+            zeta(beta)"," quad &beta > 1",",
         )
 $
+which, if nothing else, has an interesting connection to the Zeta function.
 
 === Exponential Gaps
+Consider Gaps
+$
+    Delta_j = c^(j - 1), quad j = 1, ..., n
+$
+giving $N(t) = floor(log_c (t - 1))$,
 
 $
-    Delta_j = e^j
+    Lambda_n = sup_(t > 0) log(log_c (t - 1))/t 
 $
 
 === Polynomial Gaps
-
+Consider gaps
 $
 Delta_j = j^alpha
 $
+$N(t) approx t^(1\/alpha)$
 
 === Hierarchical Gaps
 
 $m_1$ within distance 1
 $m_2$ within distance 2
 etc
+
+= Discussion
+
+== Alternatives to Softmax
 
 #pagebreak()
 #bibliography("citations.bib", title: "References")
