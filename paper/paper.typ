@@ -2026,11 +2026,12 @@ We now consider scores $s_j^((n)) = g(j)$, where $g$ does not depend on $n$. In 
     Let $g$ be an increasing function independent of $n$ such that #footnote[
         Recall that this assumption can be made because of the shift invariance of softmax.
     ]
-    $g(0) = 0$
-    and consider scores $s_j = -g(j)$ for $j >= 0$, yielding gaps $Delta_j^((n)) = g(j)$. Define for $j >= 1$
+    $g(1) = 0$
+    and consider scores $s_j^((n)) = -g(j)$, yielding gaps $Delta_j^((n)) = g(j)$. Define for $j >= 1$
     $
-        lambda_j = log(j)/g(j).
+        lambda_j = log(j)/g(j),
     $
+    with convention that $lambda_1 = 0$. Then, the following hold:
     1. If $lambda_j$ attains a finite maximum at index $j_0$, then for large enough $n$, the upper tail accumulation scale eventually satisfies $Lambda_n = lambda_j_0 = O(1)$.
     2. If $lambda_j -> C in [0, inf)$ as $j -> inf$, then $Lambda_n = O(1)$.
     3. If $lambda_j$ is increasing and $lambda_j -> inf$ and $j -> inf$, then $Lambda_n = lambda_n$.
@@ -2057,7 +2058,7 @@ and hence the growth of this function depends on the inverse of $g$.
 For sub-logarithmic functions, the inverse, and hence $N(t)$ grows super-exponentially and, causing collapse in weights after softmax. In this case, scaling is necessary. For super-logarithmic functions, the inverse grows sub-exponentially and $N(t)$ grows at an appropriate weight for softmax to avoid collapse.
 
 #proposition[
-    Let $g$ be an increasing function independent of $n$ such that $g(0) = 0$ and $a_n$ a positive sequence.
+    Let $g$ be an increasing function independent of $n$ such that $g(0) = 1$ and $a_n$ a positive sequence.
     Define scores 
         $
             s_j^((n)) = -a_n g(j), quad r_j^((n)) = - g(j)
@@ -2112,29 +2113,33 @@ Although potentially unrealistic in the context of real models, this shows that 
 
 === Applied Examples
 
+==== Linear Gaps (Unbounded)
 
-=== Linear Gaps
-
-Let 
+Consider scores
 $
-    s_j = -(j-1)/n, quad j = 1, ..., n.
+    s_j^((n)) = -(j - 1),
 $
-Then, $Delta_j = (j-1)/n$  and $N(t) = 1 + floor(n t)$. We wish to compute
+which is to say $g(j) = j - 1$ in the context of the theory above. Then,
 
 $
-    Lambda_n = sup_(t > 0) (log (1 + floor(n t)))/t.
+    Lambda_n = max_(1 <= k <= n) log(k) / (k - 1) = log 2.
 $
-On any interval $t in [m/n, (m+1)/n]$, the numerator is constant and thus $t$ must be taken as small as possible, namely $t = m/n$. Therefore the supremum is
-$
-    Lambda_n = sup_(m >= 1) log(1 + m)/(m\/n) = n sup_(m >= 1) log(1 + m)/m = n log 2,
-$
-since $log(1+m)/m$ is decreasing for $m >= 1$. This gives a critical scaling $beta_n asymp n$ according to @scc.
 
-We may also analyze this setting with respect to the maximum weight
+==== Linear Gaps (Bounded)
+
+Consider scores
+$
+    s_j^((n)) = -(j-1)/n.
+$
+This is the last example scaled by $alpha_n = 1/n$, meaning
+$
+    Lambda_n = n log 2,
+$
+by @proprescale. We may also analyze this setting with respect to the maximum weight
 $
     a_"max" 
         = 1/(Z (beta_n)) 
-        = [sum_(k=0)^(n - 1) exp(-beta_n k / n)]^(-1)
+        = [sum_(j=1)^(n) exp(-beta_n (j-1) / n)]^(-1)
         = (1 - e^(-beta_n \/ n))/(1 - e^(-beta_n)),
 $
 where if $beta_n -> inf$ and $beta_n\/n -> lambda$ as $n -> inf$,
@@ -2148,33 +2153,104 @@ $
 $
 In particular, the scaling $beta_n = n log 2$ will have maximum weight $a_"max" = 1/2$.
 
-=== Exponential Gaps
-Consider Gaps
+=== Super-Logarithmic Gaps
+
+By @propd, any function such that
 $
-    Delta_j = c^(j - 1), quad j = 1, ..., n
+    log(j)/g(j) -> 0
 $
-giving $N(t) = floor(log_c (t - 1))$,
+as $j -> inf$ will necessarily have $Lambda_n = O(1)$, and rescalings by $alpha_n$ will simply affect $Lambda_n$ by a factor of $1\/alpha_n$. This covers a wide range of functions (exponential, linear, polynomial, etc.).
+
+== Connection to Statistical Physics and Simulated Annhealing
+
+The softmax operator admits a natural interpretation through the framework of statistical physics. In this context, a system with states $x$ and and energy function $H(x)$ is described by the Gibbs distribution
+$
+    G_T(x) = e^(-H(x)\/T)/Z(T),
+$
+where $T$ is the temperature and $Z(T)$ is known as the partition function 
+$
+    Z(T) = sum_x e^(-H(x)\/T).
+$
+
+#proposition[
+    Given a finite set of states $x$ with energies $H(x)$, the Gibbs distribution is the distribution that maximizes the entropy
+    $
+        S(x) = - sum_x p(x) log p(x)
+    $
+    among all probability distributions $p$ satisfying a fixed expected energy constraint
+    $
+        sum_x p(x) H(x) = U.
+    $
+]
+
+#proof[
+    We use the method of Lagrange multipliers for the two constraints. Define
+    $
+        cal(L) (p, alpha, beta) 
+            = - sum_x p(x) log p(x)
+                - alpha(sum_x p(x) - 1)
+                - beta(sum_x p(x) H(x) - U).
+    $
+    For each $x$,
+    $
+        pddv(cal(L), p(x)) = - (log p(x) + 1) - alpha - beta H(x),
+    $
+    which when set to zero gives
+    $
+        p(x) = C e^(-beta H(x)).
+    $
+    Under the normalization condition, $sum_x p(x) = 1$, it is clear that 
+    $
+        C = 1/(sum_x e^(-beta H(x))).
+    $
+    Finally, we note that
+    $
+        (partial^2 S)/(partial p(x)^2) = - 1/p(x) < 0,
+    $
+    and
+    $
+        (partial^2 S)/(partial p(x) partial p(y)) = - 1/p(x) = 0,
+    $
+    for $y != x$,
+    hence the Hessian of $S$ is negative definite and $S$ is strictly concave. The two constraints are linear, so the feasible set is convex. Thus, this distribution is indeed the minimum. The multiplier $beta$ can be reparameterized by setting $beta = 1\/T$, as is common in physics, and is the constraint that controls the average energy of the distribution.
+]
+
+The attention distribution has exactly this form when distances to the maximum score are treated as energy levels,
 
 $
-    Lambda_n = sup_(t > 0) log(log_c (t - 1))/t 
+    a_j = e^(-beta Delta_j)/(sumkn e^(-beta Delta_k)),
 $
+as seen before. In this context, attention acts as a physical system in which both entropy and energy are key quantities. This is a fundamental theme in the domain of physics and provides an explanation for the ideas of attention scaling.
 
-=== Polynomial Gaps
-Consider gaps
+First, the gap counting function $N(t)$ gives the amount of scores (states) available below a certain threshold (energy level). Restricted to this energy level, the maximum entropy distribution over these states is that of the uniform distribution,
 $
-Delta_j = j^alpha
+    S(t) = log N(t).
 $
-$N(t) approx t^(1\/alpha)$
+Using the above interpretation,
+$
+    Lambda_n = sup_(t > 0) S(t)/t
+$
+is the largest entropy increase per unit energy tolerance. 
+Second, the scaling $beta$ controls the average energy of the output distribution, as seen above. Increasing $beta$ strengthens the preference for low-energy states, since higher-energy states are exponentially suppressed by the factor $exp(-beta H(x))$. For a fixed $n$, the zero-temperature limit $beta -> inf$ leads to a distribution that concentrates on only the minimal energy states, which is to say the poentially tied maximal attention scores, and disregards all other scores.
 
-=== Hierarchical Gaps
+At distance $t$ from the maximum, the energy penalty is $e^(-beta t)$, and the number of choices gained is $N(t)$. The total contribution of this set to the partition function $Z(beta)$ is therefore bounded below by $N(t) e^(-beta t)$, which exhibits two competing exponential effects, the growth in number of available near-optimal states and the energetic penalty for moving away from the optimum. Taking logarithms gives the effective competition
+$
+    log N(t) - beta (t) = S(t) - beta t = t(S(t)/t - beta).
+$
+Thus, the critical scaling occurs when these two effects balance. If $beta_n >> Lambda_n$, then $S(t)/t - beta < 0$ for all $t$, meaning the energy penalty dominates the entropy gained from additional states. The distribution concentrates on the lowest-energy states, leading to attention collapse. Conversely, if $beta_n << Lambda_n$, there is some $t$ where $S(t)/t - beta > 0$
 
-$m_1$ within distance 1
-$m_2$ within distance 2
-etc
+-----------------------------------------
+
+
+=== Role of Constants in $Lambda_n$
+
+== Experiments on Scores
 
 = Discussion
 
 == Alternatives to Softmax
+- Top x: issue doesn't scale well
+- Sparsemax?
 
 #pagebreak()
 #bibliography("citations.bib", title: "References")
