@@ -2161,7 +2161,9 @@ $
 $
 as $j -> inf$ will necessarily have $Lambda_n = O(1)$, and rescalings by $alpha_n$ will simply affect $Lambda_n$ by a factor of $1\/alpha_n$. This covers a wide range of functions (exponential, linear, polynomial, etc.).
 
-== Connection to Statistical Physics and Simulated Annhealing
+== Connection to Statistical Physics and Simulated Annealing
+
+=== Setup
 
 The softmax operator admits a natural interpretation through the framework of statistical physics. In this context, a system with states $x$ and and energy function $H(x)$ is described by the Gibbs distribution
 $
@@ -2237,7 +2239,44 @@ At distance $t$ from the maximum, the energy penalty is $e^(-beta t)$, and the n
 $
     log N(t) - beta (t) = S(t) - beta t = t(S(t)/t - beta).
 $
-Thus, the critical scaling occurs when these two effects balance. If $beta_n >> Lambda_n$, then $S(t)/t - beta < 0$ for all $t$, meaning the energy penalty dominates the entropy gained from additional states. The distribution concentrates on the lowest-energy states, leading to attention collapse. Conversely, if $beta_n << Lambda_n$, there is some $t$ where $S(t)/t - beta > 0$
+Thus, the critical scaling occurs when these two effects balance. If $beta_n >> Lambda_n$, then $S(t)/t - beta < 0$ for all $t$, meaning the energy penalty dominates the entropy gained from additional states. The distribution concentrates on the lowest-energy states, leading to attention collapse. 
+Conversely, if $beta_n << Lambda_n$, there is energy levels $t$ for which $S(t)/t - beta > 0$. At such a level, the exponential growth in the number of accessible states outweighs the exponential suppression of their individual weights.
+Consequently, collections of near-optimal states make a non-neglible contribution to the partition function, preventing minimal-energy states from being the unique dominant contributors. In particular, if we are considering a sequence of scores for which $Lambda_n -> inf$, $beta_n << Lambda_n$ implies that 
+
+=== Simulated Annealing
+
+Simulated annealing is a stochastic optimization method motivated by the physical process of thermal annealing, in which a material is gradually cooled to reach a low-energy equilibrium configuration. The method considers an optimization problem defined by an _energy_ or _cost_ function $E(x)$, where $x$ denotes a possible configuration and lower values of $E(x)$ correspond to more desirable solutions. The objective is to identify a global minimizer $x^* = arg min E(x)$.
+
+Unlike deterministic optimization methods that always select an improving transition, simulated annealing allows occasional transitions to higher-energy configurations. Given a current state $x$, a candidate state $x'$ is generated according to a problem-dependent proposal distribution $x' tilde q(x'|x)$. The proposed transition is accepted with probability
+
+$
+    PP(x -> x') 
+        = cases(
+            1"," quad &E(x') <= E(x),
+            exp(- (E(x') - E(x))/T)"," quad &E(x') > E(x),
+        )
+$
+where $T$ is a parameter called _temperature_. At high temperatures, the algorithm frequently accepts higher-energy states, allowing for broad exploration of state space and escaping from local minima. As temperature decreases, higher-energy transitions become increasingly unlikely, causing the system to concentrate on low-energy configurations.
+
+It can be shown [CITATION NEEDED] that the Gibbs distribution,
+$
+    p(x) = e^(-E(x)\/T)/(sum_x e^(-E(x)\/T))
+$
+is the stationary distribution of the Markov chain. In other words, for a fixed $T$ and under standard assumptions on the transition mechanism, repeated application of the transition rule causes the distribution of visited states to converge to $p$. Thus, simulated annealing can be interpreted as a procedure for sampling from the Gibbs distribution at a given temperature.
+
+The defining feature of simulated annealing is the gradual reduction of the temperature parameter $t$. The temperature is therefore not held fixed, but is reduced according to a _cooling schedule_
+$T_0 > T_1 > T_2 > ... > T_K.$
+At each temperature $T_k$, the Markov chain is allowed to approach equilibrium before the temperature is lowered further. This creates a sequence of Gibbs distributions
+$p_1, ..., p_K$ that gradually shifts probability mass from exploration of the entire state space towards exploration of the lowest-energy configurations.
+
+Under certain assumptions, sufficiently slow logarithmic cooling guarantees convergence to a global minimum. However, this schedule is often impractical because it requires an extremely large number of iterations. In practice, faster schedules such as geometric cooling $T_(k+1) = alpha T_k$ are typically used because they provide a better tradeoff between computational cost and solution quality. Further research showed that the cooling schedule largely depends on the geometry of the cost function.
+
+In terms of attention, we may let the indices $j = 1, ..., n$ be the states in question with $E(j) = Delta_j$ and $beta = 1/T$ to give stationary distribution
+
+$
+    p(j) = a_j = e^(- beta Delta_j)/(sumjn e^(- beta Delta_j)).
+$
+It is immediately clear that there is a possiblity of connecting historic research on temperature schedules through $T$ to attention scaling through $beta$
 
 -----------------------------------------
 
