@@ -401,6 +401,13 @@ This is useful for model training purposes, but for generation purposes we only 
 
 == Summary
 
+The following figure summarizes the attention mechanism. Terminology varies slightly.
+
+#figure(
+    image("attention.png"),
+    caption: [The Attention Mechanism. Source: The AI Edge Newsletter @ai_edge_transformer_v2]
+)
+
 == Long-Context Transformers
 
 While the term "long" continuously changes meaning as advances are made in machine learning, long-context transformers are transformers that are designed to support a context length $n$ that is substantially longer than what is seen in common models. Many real-world tasks such as reasoning over long documents, codebases, or dialogues require access to information that may be introduced thousands or even millions of tokens earlier, where simply truncating the context leads to severly degraded performance. Increasing context length effectively augments the models "memory", which allows for richer retrieval of relevant evidence and more coherent global reasoning. 
@@ -1689,6 +1696,12 @@ This is clearly well-defined on finite $n$ since $N(t) <= n$. However, we immedi
     $
     which satisfies $N(Delta_Lambda) = n^alpha$.
 ]
+@gcf illustrates relevant quantities on sample data.
+
+#figure(
+    image("gap_plot.png", width: 60%),
+    caption: [Visualization of gap counting quantities.]
+) <gcf>
 
 #lemma[
     The Shannon entropy $H(beta) = - sum_(j=1)^n a_j (beta) log (a_j (beta))$ satisfies
@@ -2058,7 +2071,7 @@ and hence the growth of this function depends on the inverse of $g$.
 For sub-logarithmic functions, the inverse, and hence $N(t)$ grows super-exponentially and, causing collapse in weights after softmax. In this case, scaling is necessary. For super-logarithmic functions, the inverse grows sub-exponentially and $N(t)$ grows at an appropriate weight for softmax to avoid collapse.
 
 #proposition[
-    Let $g$ be an increasing function independent of $n$ such that $g(0) = 1$ and $a_n$ a positive sequence.
+    Let $g$ be an increasing function independent of $n$ such that $g(1) = 0$ and $a_n$ a positive sequence.
     Define scores 
         $
             s_j^((n)) = -a_n g(j), quad r_j^((n)) = - g(j)
@@ -2271,19 +2284,199 @@ $p_1, ..., p_K$ that gradually shifts probability mass from exploration of the e
 
 Under certain assumptions, sufficiently slow logarithmic cooling guarantees convergence to a global minimum. However, this schedule is often impractical because it requires an extremely large number of iterations. In practice, faster schedules such as geometric cooling $T_(k+1) = alpha T_k$ are typically used because they provide a better tradeoff between computational cost and solution quality. Further research showed that the cooling schedule largely depends on the geometry of the cost function.
 
-In terms of attention, we may let the indices $j = 1, ..., n$ be the states in question with $E(j) = Delta_j$ and $beta = 1/T$ to give stationary distribution
-
+In terms of attention, we may interpret the indices $j = 1, ..., n$ as a set of possible states, with the energy of each state defined by its score gap $E(j) = Delta_j$. The softmax operation then induces a Gibbs distribution
 $
-    p(j) = a_j = e^(- beta Delta_j)/(sumjn e^(- beta Delta_j)).
+    p(j) = a_j = e^(- beta Delta_j)/(sumjn e^(- beta Delta_j)),
 $
-It is immediately clear that there is a possiblity of connecting historic research on temperature schedules through $T$ to attention scaling through $beta$
+where $beta = 1\/T$ acts as an inverse temperature.
 
------------------------------------------
+However, there is an important distinction from simulated annealing. Simulated annealing is an optimization procedure that gradually modifies the temperature of a Markov chain in order to concentrate probability mass around global minima of an energy function. Attention does not perform an iterative search, nor does it evolve a state distribution through a Markov process. Instead, the distribution is computed in a single forward pass from the learned query-key interactions. Therefore, the temperature analogy should not be interpreted as an optimization mechanism, but rather as a characterization of how the learned attention landscape controls the selectivity of a given attention head.
+
+The question is therefore not whether attention directly implements or should implement simulated annealing, but whether the learned model parameters implicitly exhibit or benefit from a (not necessarily monotonic) temperature schedule that varies with either layer depth $l$ or context length $n$. 
 
 
 === Role of Constants in $Lambda_n$
 
-== Experiments on Scores
+= Experiments on Scores
+
+The experiments in this section investigate the empirical behaviour of the theoretical quantities introduced in previous sections. We evaluate these quantities across four pretrained Transformer models: GPT-2 Medium and GPT-2 Large~@radford2019language, OPT-350M~@zhang2022opt, and BERT-Large~@devlin2019bert. The relevant architectural characteristics of these models are summarized in [REF TABLE].
+The scope of the analysis was limited to these models due to the substantial computational requirements of attention-based analysis for larger architectures.
+
+#set align(center)
+#block(text(size: 9pt)[
+#table(
+  columns: 6,
+  inset: 6pt,
+  align: left,
+  table.header(
+    [*Model*],
+    [*Architecture*],
+    [*Parameters*],
+    [*Layers*],
+    [*Heads*],
+    [*Embed Dim.*],
+  ),
+
+  [GPT-2 Medium],
+  [Causal],
+  [355M],
+  [24],
+  [16],
+  [1024],
+
+
+  [GPT-2 Large],
+  [Causal],
+  [774M],
+  [36],
+  [20],
+  [1280],
+
+  [OPT-350M],
+  [Causal],
+  [331M],
+  [24],
+  [16],
+  [1024],
+
+  [BERT-Large],
+  [Bidirectional],
+  [340M],
+  [24],
+  [16],
+  [1024],
+)
+])
+#set align(left)
+
+This selection allows for the following comparisons:
+
+- Scale: GPT-2 Medium and GPT-2 Large share the same architecture while differing primarily in model size and depth.
+
+- Implementation and Training: GPT-2 Medium and OPT-350M have comparable architectural dimensions, but were trained using different datasets and training procedures.
+
+- Masking: GPT-2 models and OPT-350M use causal self-attention (triangular masking), where each token attends only to previous tokens. BERT-Large uses bidirectional self-attention (no masking), allowing each token to attend to the full input sequence.
+
+The input sequences used for evaluation are summarized in [REF TABLE]. The selected sequences are designed to probe different attention behaviours.
+
+Due to the computational cost of extracting and analyzing full attention distributions across multiple models, the evaluation is restricted to relatively short input sequences. Longer contexts may reveal more behaviour, but the selected sequences are likely sufficient to investigate the layer-wise structure of relevant quantities at finite scales (i.e. not in the $n -> inf$ limit).
+
+#set align(center)
+
+#set align(left)
+
+#block(text(size: 9pt)[
+
+    #table(
+      columns: 4,
+      inset: 6pt,
+      align: left,
+      table.header(
+        [*ID*],
+        [*Type*],
+        [*Purpose*],
+        [*Example excerpt*],
+      ),
+
+      [P1], [Natural language], [Baseline text], ["The scientist walked into the laboratory..."],
+      [P2], [Narrative], [Long-range dependencies], ["In the summer of 1847, a young researcher began..."],
+      [P3], [Repetition], [Pattern matching], ["red blue green yellow red blue..."],
+      [P4], [Retrieval], [Context recall], ["Alice went to the market. She bought apples..."],
+      [P5], [Mathematical reasoning], [Symbolic reasoning], ["If x equals 5 and y equals 10..."],
+      [P6], [Code], [Syntax structure], ["def factorial(n): if n == 0..."],
+      [P7], [Factual text], [Semantic integration], ["The history of mathematics is a story..."],
+      [P8], [High entropy], [Incoherent text], ["purple quantum bicycle sings silently..."],
+      [P9], [Random tokens], [Unpredictable input], ["xylophone nebula 47 carpet velocity..."],
+      [P10], [Logical reasoning], [Abstract relations], ["Every A is a B. Every B is a C..."],
+    )
+])
+
+We will use the notation $Theta_(p, l, h, q)$ to refer to some observable quantity $Theta$ for prompt $p$, layer $l$, attention head $h$, and token query $q$. Models will be analyzed separately then compared unless otherwise stated.
+
+
+
+== Effective Scaling
+
+Recall the learned parameters $W_Q$ and $W_K$ in the attention score calculation
+
+$
+    S = 1/sqrt(d_k) X W_Q (X W_K)^T.
+$
+Assuming classical softmax with no explicit scaling, the model may implicitly learn a scaling $beta$ through the norms of the $W_Q$ and $W_K$ matrices, or potentially through earlier transformations such as the input embedding matrix. For example, scaling either matrix by a constant scales the attention scores by the same factor. Since the entire model is a parameterized system, this scaling is not necessarily represented by a single identifiable paramter in a pre-trained model. Even if the parameter $beta$ is included in the model and trained, the effective scaling of attention scores may still be controlled by earlier parameters if no explicit regularization is included. Furthermore, this is not limited to being a scalar, since different rows of the attention matrix differently by modifying the weights of the matrices. Thus, extracting a true underlying temperature for a fixed context length $n$ for a given attention head requires defining a reference frame and some compromise in aggregation.
+
+Up to shifting, softmax can be inverted to obtain scores $s_j = log(a_j)$
+
+#definition[
+    Given attention scores $s in RR^n$, define the effective scaling
+    $
+        beta_"eff" = Lambda^(-1)
+    $
+    where $Lambda$ is the corresponding upper tail accumulation scale of $s$. For some aggregated scale $overline(Lambda)$ over many individual scales $Lambda$, the corresponding effective scaling is $overline(Lambda)^(-1)$.
+]
+
+Assuming that the model keeps $Lambda^((r)) = 1$ in an unscaled reference state with scores $r_j$, and has scaled scores $beta_"eff" dot s_j$ according to some effective scaling, applying @proprescale gives that $beta_"eff" = 1\/Lambda^((s))$. This can also be interpreted as the ratio $r = beta_n\/Lambda$ with the actual value $beta = 1$, which has $r << 1$ and $r >> 1$ corresponding to "hot" high-entropy and "cool" low-energy states, respectively, and is the ratio investigated asymptotically in @scc. Other methods to define an effective scaling are possible, such as the standard deviation $sqrt("Var"(s))$ or the matrix norms $norm(W_q)$ or $norm(W_k)$, however these do not seem to appropriately capture the scaling effects.
+
+Noting that softmax can be inverted up to shifting to obtain gaps $Delta_j = - log(a_j)$, this metric allows $Lambda$ acts as an observable quantity that gives information on scaling beyond the theoretical quantification of collapse. This serves an important tool in interpreting the models temperature scheduling. We will also use $T_"eff" = beta_"eff"^(-1) = Lambda$ in order to draw parallels with simulated annealing.
+
+== Upper Tail Accumulation Scale
+
+The question is naturally how $Lambda_(p, l, h, q)$ varies 
+
+
+=== Lambda Cooling
+We aggregate over prompts, layers, and queries to obtain the layer average
+$
+    Lambda_l =  1/(p h q) sum_(p, h, q) Lambda_(p, l, h, q).
+$
+While this is suceptible to many oversmoothing because of averaging, it is a starting point in investigating this quantity.
+
+#figure(
+    grid(
+      columns: 2,
+      rows: 2,
+      gutter: 10pt,
+
+      image("meanlambdas-gpt2med.png", width: 100%),
+      image("meanlambdas-gpt2large.png", width: 100%),
+      image("meanlambdas-opt350m.png", width: 100%),
+      image("meanlambdas-bertlarge.png", width: 100%),
+    ),
+    caption: [Evolution of mean $Lambda$ by layer. Shaded regions show $pm 1 "std"$ across prompts.]
+)<lambdaavg>
+
+Interpreting $Lambda$ as $T_"eff"$, the three causal (masked) models qualitatively appear to apply a cooling process as depth increases.
+As a first observation, this suggests that this initial cooling phase is an important part of effective text-based causal transformer models. Theoretically, this means that if a model were to naively scale scores by their corresponding scales $Lambda^(-1)$ before applying standard softmax, in turn leading to scaled scores having $Lambda = 1$, then the effective cooling schedule would be constant and it is possible the model would underperform.
+
+The two GPT models have roughly corresponding trajectories in terms of relative length of the apparent phases. Aside from the initial cooling, a particularly interesting phase is the "reheating" phase in the final few layers of the models. This is noticeably different to the final few layers in OPT-350M. The GPT models and OPT-350M are largely similar in architecture, but were trained on substantially different datasets, which may explain this difference. 
+
+The more erratic results of the bidirectional (unmasked) BERT model indicate that behaviour is more complex than expected. For this reason, the following subsections will be restricted to the causal models and the corresponding experiments on BERT will be discussed in a later subsection.
+
+=== Input Prompt Dependence
+
+As shown in @lambdaavg, the three causal models have relatively small deviation from the mean across the 10 prompts. This suggests that the layer-wise evolution of Lambda is primarily a property of model architecture and depth rather than the specific input sequence. @lambdasbylayer plots the averaged $Lambda_(p, l)$ and shows that all prompts follow a roughly similar trajectory. The plots for the two other causal models are similar and have not been included. Minor deviations in overall vertical shift are explained by sequence length $n$, and per-layer deviations such as that of prompt 3 in layer 10 could be explained by how the specific prompt (in this case, a repetitive sequence) interacts with a layer's learned dynamics.
+These deviations are neglible compared to the overwhelming trend of following the mean trajectory, but might be an interesting direction for future work.
+
+#figure(
+    image("lambdabylayergpt2.pdf", width: 60%),
+    caption: [Mean $Lambda$ by layer and prompt.]
+)<lambdasbylayer>
+
+
+#figure(
+    image("lambda_correlation_heatmaps.pdf", width: 100%),
+    caption: [TODO]
+)
+
+== Longer Context
+
+== Comparison with Other Metrics
+
+For consistency, it is important to verify that this measure of effective scaling correlates to the entropy of the attention weights. 
+
+=== Longer Sequences
+
+=== BERT
+
 
 = Discussion
 
