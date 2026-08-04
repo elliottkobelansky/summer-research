@@ -39,7 +39,7 @@
   #v(0.8cm)
 
   #text(size: 14pt, fill: rgb("#555555"))[
-    Layer-Wise Dynamics, Input Dependence, and Architectural Variation
+      Placeholder subtitle
   ]
 
   #v(2cm)
@@ -71,11 +71,7 @@
     radius: 8pt,
     [
       #text(size: 10.5pt)[
-        This project investigates the scaling behavior of attention
-        distributions in Transformer models. Through the analysis of
-        layer-wise attention dynamics, input dependence, and architectural
-        variation, we study how attention patterns evolve across depth and
-        model families.
+          Placeholder description.
       ]
     ]
   )
