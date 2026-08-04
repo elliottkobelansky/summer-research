@@ -99,6 +99,17 @@
   padding: thmsettings.padding,
 )
 
+#let conjecture = thmbox(
+  "theorem", // identifier
+  text("Conjecture"),//, fill: solarized.red), // head
+  fill: solarized.gray,
+  inset: thmsettings.inset,
+  stroke: 1pt,
+  base_level: thmsettings.base_level,
+  supplement: "Theorem",
+  padding: thmsettings.padding,
+)
+
 #let stheorem(body, source: none, name: none) = {
     theorem(name)[
         #stack(

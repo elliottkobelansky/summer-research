@@ -5,12 +5,94 @@
 
 #show: doc => conf(doc)
 
-// Todo add footer
-#set page(numbering: "1", number-align: top+right)
-
 #set page(
     paper: "us-letter",
 )
+
+#set page(
+  margin: (top: 2.5cm, bottom: 2.5cm, left: 2.5cm, right: 2.5cm)
+)
+
+#set text(font: "New Computer Modern", size: 11pt)
+
+#let accent = rgb("#2455A4")
+
+#align(center)[
+  #v(2.5cm)
+
+  #text(size: 28pt, weight: "bold", fill: accent)[
+    Attention Scaling
+  ]
+
+  #text(size: 28pt, weight: "bold")[
+    in Transformer Models
+  ]
+
+  #v(0.4cm)
+
+  #rect(
+    width: 2.5cm,
+    height: 3pt,
+    fill: accent,
+  )
+
+  #v(0.8cm)
+
+  #text(size: 14pt, fill: rgb("#555555"))[
+    Layer-Wise Dynamics, Input Dependence, and Architectural Variation
+  ]
+
+  #v(2cm)
+
+  #text(size: 13pt, weight: "medium")[
+    Elliott Kobelansky
+  ]
+
+  #v(0.3cm)
+
+  #text(size: 11pt, fill: rgb("#555555"))[
+    Department of Mathematics and Statistics
+    #linebreak()
+    McGill University
+  ]
+
+  #v(1.2cm)
+
+  #text(size: 11pt)[
+    Summer 2026
+  ]
+
+  #v(2cm)
+
+  #block(
+    width: 75%,
+    inset: 12pt,
+    fill: rgb("#F5F7FB"),
+    radius: 8pt,
+    [
+      #text(size: 10.5pt)[
+        This project investigates the scaling behavior of attention
+        distributions in Transformer models. Through the analysis of
+        layer-wise attention dynamics, input dependence, and architectural
+        variation, we study how attention patterns evolve across depth and
+        model families.
+      ]
+    ]
+  )
+]
+
+#set page(
+  footer: context [
+    #align(center)[
+      #text(size: 9pt)[
+        #counter(page).display()
+      ]
+    ]
+  ]
+)
+
+
+#let accent = rgb("#2455A4")
 
 #set par(
     first-line-indent: 0em,
@@ -24,6 +106,7 @@
     font: "New Computer Modern",
     hyphenate: false
 )
+
 #show math.equation: set text(font: "New Computer Modern Math")
 
 #let ip(x, y) = $chevron.l #x, #y chevron.r$
@@ -2299,54 +2382,36 @@ The question is therefore not whether attention directly implements or should im
 
 = Experiments on Scores
 
-The experiments in this section investigate the empirical behaviour of the theoretical quantities introduced in previous sections. We evaluate these quantities across four pretrained Transformer models: GPT-2 Medium and GPT-2 Large~@radford2019language, OPT-350M~@zhang2022opt, and BERT-Large~@devlin2019bert. The relevant architectural characteristics of these models are summarized in [REF TABLE].
+The experiments in this section investigate the empirical behaviour of the theoretical quantities introduced in previous sections. We evaluate these quantities across four pretrained Transformer models: GPT-2 Medium and GPT-2 Large~@radford2019language, OPT-350M~@zhang2022opt, BLOOM-560M~@scao2022bloom, and BERT-Large~@devlin2019bert. The relevant architectural characteristics of these models are summarized in @modelsexp.
 The scope of the analysis was limited to these models due to the substantial computational requirements of attention-based analysis for larger architectures.
 
 #set align(center)
-#block(text(size: 9pt)[
-#table(
-  columns: 6,
-  inset: 6pt,
-  align: left,
-  table.header(
-    [*Model*],
-    [*Architecture*],
-    [*Parameters*],
-    [*Layers*],
-    [*Heads*],
-    [*Embed Dim.*],
-  ),
 
-  [GPT-2 Medium],
-  [Causal],
-  [355M],
-  [24],
-  [16],
-  [1024],
+#figure(
+    text(size: 9pt)[
+        #table(
+    columns: 6,
+    inset: 5pt,
+    align: center,
+    table.header(
+      [*Model*],
+      [*Architecture*],
+      [*Parameters*],
+      [*Layers*],
+      [*Heads*],
+      [*Embed Dim.*],
+    ),
 
+    [GPT-2 Medium], [Causal], [355M], [24], [16], [1024],
+    [GPT-2 Large],  [Causal], [774M], [36], [20], [1280],
+    [OPT-350M],     [Causal], [331M], [24], [16], [1024],
+    [BLOOM-560M],   [Causal], [559M], [24], [16], [1024],
+    [BERT-Large],   [Bidirectional], [340M], [24], [16], [1024],
+  )],
 
-  [GPT-2 Large],
-  [Causal],
-  [774M],
-  [36],
-  [20],
-  [1280],
+  caption: [Model architectures used for experiments.]
+)<modelsexp>
 
-  [OPT-350M],
-  [Causal],
-  [331M],
-  [24],
-  [16],
-  [1024],
-
-  [BERT-Large],
-  [Bidirectional],
-  [340M],
-  [24],
-  [16],
-  [1024],
-)
-])
 #set align(left)
 
 This selection allows for the following comparisons:
@@ -2355,45 +2420,49 @@ This selection allows for the following comparisons:
 
 - Implementation and Training: GPT-2 Medium and OPT-350M have comparable architectural dimensions, but were trained using different datasets and training procedures.
 
+- Consistency: BLOOM-560M provides an additional causal model with a different training setup and architecture while remaining comparable in scale to the other decoder-only models. Agreement between GPT-2, OPT, and BLOOM would provide stronger evidence that the observed behaviour is not specific to a single model family.
+
 - Masking: GPT-2 models and OPT-350M use causal self-attention (triangular masking), where each token attends only to previous tokens. BERT-Large uses bidirectional self-attention (no masking), allowing each token to attend to the full input sequence.
 
-The input sequences used for evaluation are summarized in [REF TABLE]. The selected sequences are designed to probe different attention behaviours.
-
-Due to the computational cost of extracting and analyzing full attention distributions across multiple models, the evaluation is restricted to relatively short input sequences. Longer contexts may reveal more behaviour, but the selected sequences are likely sufficient to investigate the layer-wise structure of relevant quantities at finite scales (i.e. not in the $n -> inf$ limit).
+The input sequences used for evaluation are summarized in @prompts. The selected sequences are designed to probe different attention behaviours at similar context lengths of around 40 tokens. Due to the computational cost of extracting and analyzing full attention distributions across multiple models, the evaluation is restricted to relatively short input sequences. Longer contexts may reveal more behaviour, but the selected sequences are likely sufficient to investigate the layer-wise structure of relevant quantities at finite scales (i.e. not in the $n -> inf$ limit). A later section will investigate longer-context behaviours of the models.
 
 #set align(center)
 
-#set align(left)
+#figure(
 
-#block(text(size: 9pt)[
+block(text(size: 9pt)[
 
     #table(
-      columns: 4,
+      columns: 3,
       inset: 6pt,
       align: left,
       table.header(
         [*ID*],
         [*Type*],
-        [*Purpose*],
-        [*Example excerpt*],
+        [*Exerpt*],
       ),
 
-      [P1], [Natural language], [Baseline text], ["The scientist walked into the laboratory..."],
-      [P2], [Narrative], [Long-range dependencies], ["In the summer of 1847, a young researcher began..."],
-      [P3], [Repetition], [Pattern matching], ["red blue green yellow red blue..."],
-      [P4], [Retrieval], [Context recall], ["Alice went to the market. She bought apples..."],
-      [P5], [Mathematical reasoning], [Symbolic reasoning], ["If x equals 5 and y equals 10..."],
-      [P6], [Code], [Syntax structure], ["def factorial(n): if n == 0..."],
-      [P7], [Factual text], [Semantic integration], ["The history of mathematics is a story..."],
-      [P8], [High entropy], [Incoherent text], ["purple quantum bicycle sings silently..."],
-      [P9], [Random tokens], [Unpredictable input], ["xylophone nebula 47 carpet velocity..."],
-      [P10], [Logical reasoning], [Abstract relations], ["Every A is a B. Every B is a C..."],
+      [P1], [Narrative], [The scientist walked into the laboratory and carefully examined...],
+      [P2], [Factual], [The history of mathematics has developed through many...],
+      [P3], [Repetition], [red blue green yellow red blue green yellow...],
+      [P4], [Logic], [Every A is a B. Every B is a C. Some C are D. Therefore,],
+      [P5], [Math], [If x equals 5 and y equals 10, then x plus y equals 15. The value of x...],
+      [P6], [Code], [def factorial(n): if n == 0...],
+      [P7], [Retrieval], [Alice visited a market and purchased apples, oranges...],
+      [P8], [Semantic Nonsense], [Purple quantum bicycles sing silently beneath invisible mountains...],
+      [P9], [Random Tokens], [xylophone nebula carpet velocity mango theorem blueglass orbit banana...],
+      [P10], [Scientific Prose], [A researcher studying electricity discovered unexpected relationships between...],
+      [P11], [French P1], [Le scientifique entra dans le laboratoire et examina attentivement...],
+      [P12], [Chinese P1], [科学家走进实验室，仔细检查了在海底深处发现的奇怪机器...],
     )
-])
+]),
+    caption: [Prompts used for experiments.]
+
+)<prompts>
+
+#set align(left)
 
 We will use the notation $Theta_(p, l, h, q)$ to refer to some observable quantity $Theta$ for prompt $p$, layer $l$, attention head $h$, and token query $q$. Models will be analyzed separately then compared unless otherwise stated.
-
-
 
 == Effective Scaling
 
@@ -2418,64 +2487,80 @@ Assuming that the model keeps $Lambda^((r)) = 1$ in an unscaled reference state 
 
 Noting that softmax can be inverted up to shifting to obtain gaps $Delta_j = - log(a_j)$, this metric allows $Lambda$ acts as an observable quantity that gives information on scaling beyond the theoretical quantification of collapse. This serves an important tool in interpreting the models temperature scheduling. We will also use $T_"eff" = beta_"eff"^(-1) = Lambda$ in order to draw parallels with simulated annealing.
 
-== Upper Tail Accumulation Scale
+== Causal Models
 
-The question is naturally how $Lambda_(p, l, h, q)$ varies 
+This section investigates the behaviour of $Lambda_(p, l, h, q)$ in the four causal (masked) models.
 
-
-=== Lambda Cooling
+=== Layer-wise $Lambda$ Scheduling
 We aggregate over prompts, layers, and queries to obtain the layer average
 $
-    Lambda_l =  1/(p h q) sum_(p, h, q) Lambda_(p, l, h, q).
+    Lambda_l =  1/(P H Q) sum_(p, h, q) Lambda_(p, l, h, q).
 $
 While this is suceptible to many oversmoothing because of averaging, it is a starting point in investigating this quantity.
 
 #figure(
-    grid(
-      columns: 2,
-      rows: 2,
-      gutter: 10pt,
-
-      image("meanlambdas-gpt2med.png", width: 100%),
-      image("meanlambdas-gpt2large.png", width: 100%),
-      image("meanlambdas-opt350m.png", width: 100%),
-      image("meanlambdas-bertlarge.png", width: 100%),
-    ),
+    image("lambda_trajectories_models.pdf"),
     caption: [Evolution of mean $Lambda$ by layer. Shaded regions show $pm 1 "std"$ across prompts.]
 )<lambdaavg>
 
-Interpreting $Lambda$ as $T_"eff"$, the three causal (masked) models qualitatively appear to apply a cooling process as depth increases.
+Interpreting $Lambda$ as $T_"eff"$, all four models qualitatively appear to exhibit a cooling process as depth increases.
 As a first observation, this suggests that this initial cooling phase is an important part of effective text-based causal transformer models. Theoretically, this means that if a model were to naively scale scores by their corresponding scales $Lambda^(-1)$ before applying standard softmax, in turn leading to scaled scores having $Lambda = 1$, then the effective cooling schedule would be constant and it is possible the model would underperform.
 
-The two GPT models have roughly corresponding trajectories in terms of relative length of the apparent phases. Aside from the initial cooling, a particularly interesting phase is the "reheating" phase in the final few layers of the models. This is noticeably different to the final few layers in OPT-350M. The GPT models and OPT-350M are largely similar in architecture, but were trained on substantially different datasets, which may explain this difference. 
-
-The more erratic results of the bidirectional (unmasked) BERT model indicate that behaviour is more complex than expected. For this reason, the following subsections will be restricted to the causal models and the corresponding experiments on BERT will be discussed in a later subsection.
+The two GPT models have roughly corresponding trajectories in terms of relative length of the apparent phases. Aside from the initial cooling, a particularly interesting phase is the "reheating" phase in the final few layers of the models. This is noticeably different to the final few layers in OPT-350M, but similar to the final layers of BLOOM-560M. The GPT models and OPT-350M are largely similar in architecture, but were trained on substantially different datasets, which may explain this difference. 
 
 === Input Prompt Dependence
 
-As shown in @lambdaavg, the three causal models have relatively small deviation from the mean across the 10 prompts. This suggests that the layer-wise evolution of Lambda is primarily a property of model architecture and depth rather than the specific input sequence. @lambdasbylayer plots the averaged $Lambda_(p, l)$ and shows that all prompts follow a roughly similar trajectory. The plots for the two other causal models are similar and have not been included. Minor deviations in overall vertical shift are explained by sequence length $n$, and per-layer deviations such as that of prompt 3 in layer 10 could be explained by how the specific prompt (in this case, a repetitive sequence) interacts with a layer's learned dynamics.
+As shown in @lambdaavg, the three causal models have relatively small deviation from the mean across the 10 prompts. This suggests that the layer-wise evolution of Lambda is primarily a property of model architecture and depth rather than the specific input sequence. @lambdasbylayer plots the averaged $Lambda_(p, l)$ and shows that all prompts follow a roughly similar trajectory. Minor deviations in per-layer deviations such as those of prompt 3 could be explained by how the specific prompt (in this case, a repetitive sequence) interacts with a layer's learned dynamics.
 These deviations are neglible compared to the overwhelming trend of following the mean trajectory, but might be an interesting direction for future work.
 
 #figure(
-    image("lambdabylayergpt2.pdf", width: 60%),
+    image("lambda-curves-all-models-2x2.pdf", width: 80%),
     caption: [Mean $Lambda$ by layer and prompt.]
 )<lambdasbylayer>
 
+To quantify this similarity, we compute the pairwise correlation between each curve, shown in @lambdacorrelation. The correlations are consistently high across models, supporting the qualitative observation from @lambdasbylayer. This suggests that the evolution of $Lambda$ across layers is dominated by a common underlying signal that is largenly independent of the input.
 
 #figure(
     image("lambda_correlation_heatmaps.pdf", width: 100%),
-    caption: [TODO]
-)
+    caption: [Correlation matrix for layerwise $Lambda$ curves of prompts 1-10 on causal models.]
+)<lambdacorrelation>
 
-== Longer Context
+The remaining differences between trajectories can be interpreted as prompt-dependent deviations from this shared behaviour. Rather than being purely noise, these deviations may reflect the models differences in computation in response to different input structures. In this view, the common trajectory represents the general computational dynamics of the architecture, while the smaller variations capture input-specific effects.
+
+The repetitive sequence prompt (P3) is the primary outlier, which has significantly lower correlation with other prompts. Highly irregular token patterns may induce a different processing regime compared to natural language inputs. Conversely, the nonsensical (P9) and random token (P10) prompts remain highly correlated with the other prompts, indicating that semantic coherence is not required for the overall layer-wise behaviour of $Lambda$ to emerge.
+
+Thus, the layer-wise dynamics of $Lambda$ seem generally robust, but slightly sensitive to unusually structured inputs. Whether these deviations correspond to meaningful computational specialization or represent other effects remains an open question.
+
+#conjecture[
+    For a fixed pretrained transformer, the layer-wise evolution of $Lambda$ can be decomposed into a shared model-dependent component and a smaller prompt-dependent residual,
+    $
+        Lambda_p (l) = mu(l) + epsilon_p (l),
+    $
+    such that $||epsilon_p||_2 << ||mu||_2$. Futhermore, we conjecture that the magnitude of the input-dependent modulation depends on the structural properties of the input. In particular, random token sequences, which preserve token-level computation while minimizing semantic structure, should produce trajectories closer to the model-dependent component, which is to say that $||epsilon_"random"||_2 < ||epsilon_p||_2$ for structured inputs $p$, such as natural language, code, or repetitive sequences.
+
+]
+
+=== Query Position Evolution
+
+For causal models, applying the causal mask to a score matrix $S$ produces a sequence of masked score vectors $s^((q))$, one for each query position $1 <= q <= n$. Since a query at position $q$ can only attend to tokens at positions $j <= q$, the corresponding score vector contains only the unmaksed entries from the first $q$ positions. Entries with $j > q$ have $s^((q))_j = -inf$, and therefore do not contribute to the resulting attention distribution. Although $s^((q))$ remains an $n$-dimensional vector in practice, its effective dimension is $q$, and hence can be treated as a score vector $s^((q)) in RR^q$ corresponding to a context of length $q$, i.e. the first $q$ tokens of the complete input sequence of length $n$.
+
+Recall that by @scc, the asymptotic relationship of $Lambda_n$ with respect to context length $n$ 
+
+While we do not have the resources to retrain large models
+
+=== Longer Context
+
+Test on longer contexts
 
 == Comparison with Other Metrics
 
 For consistency, it is important to verify that this measure of effective scaling correlates to the entropy of the attention weights. 
 
-=== Longer Sequences
+Why is Lambda so much smoother?
 
 === BERT
+
+=== Training Dynamics
 
 
 = Discussion
