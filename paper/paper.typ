@@ -18,9 +18,9 @@
 #let accent = rgb("#2455A4")
 
 #align(center)[
-  #v(2.5cm)
+  #v(1.5cm)
 
-  #text(size: 28pt, weight: "bold", fill: accent)[
+  #text(size: 28pt, weight: "bold")[
     Attention Scaling
   ]
 
@@ -28,21 +28,13 @@
     in Transformer Models
   ]
 
-  #v(0.4cm)
+  #v(0.5cm)
 
-  #rect(
-    width: 2.5cm,
-    height: 3pt,
-    fill: accent,
+  #image(
+    "lambda_evolution_surface.pdf", width: 65%
   )
 
-  #v(0.8cm)
-
-  #text(size: 14pt, fill: rgb("#555555"))[
-      Placeholder subtitle
-  ]
-
-  #v(2cm)
+  #v(0.5cm)
 
   #text(size: 13pt, weight: "medium")[
     Elliott Kobelansky
@@ -56,22 +48,21 @@
     McGill University
   ]
 
-  #v(1.2cm)
+  #v(0.2cm)
 
   #text(size: 11pt)[
     Summer 2026
   ]
 
-  #v(2cm)
+  #v(0.3cm)
 
   #block(
-    width: 75%,
-    inset: 12pt,
+    inset: 10pt,
     fill: rgb("#F5F7FB"),
     radius: 8pt,
     [
       #text(size: 10.5pt)[
-          Placeholder description.
+          This project investigates the long-context behaviour of attention in Transformer models through a review and extension of recent softmax scaling theory. The resulting quantities are evaluated on pretrained models to analyze attention dynamics across the model, with the observed trends suggesting several novel directions for further theoretical analysis.
       ]
     ]
   )
@@ -112,6 +103,8 @@
 #set cite(style: "alphanumeric")
 
 #outline(depth: 2, title: [#smallcaps("Contents")])
+
+#pagebreak()
 
 #set align(left)
 
@@ -158,7 +151,7 @@ Introduced in 2017, the Transformer architecture @vaswani2017attention resolves 
 
 Among other ways to scale a model, of particular interest is the context length $n$. In theory, this would allow the model to use much longer-range context, enabling it to connect information across distant parts of a document and maintain a more coherent global understanding of the input. In real-world applications, this is especially useful for tasks like summarizing long reports, analyzing legal or financial documents, and answering questions that require information spread across many pages. It also improves performance in settings like code generation, where earlier definitions or functions must be remembered much later in the file.
 
-However, scaling $n$ has been shown to be a non-trivial task. Among other reasons, the attention mechanism core to the Transformer is suceptible to degenerate behaviour in the large-$n$ limit, which leads to complete loss of expressive power of the model. Recent work has focused on improving the scaling behaviour of softmax attention by introducing an extra parameter, which can be found proposed in @nakanishi2025scalable. Empirically, various modifications have been shown to mitigate the effects of this collapsing attention (REFERENCES), but mathematical justification has remained incomplete. The rest of this report summarizes relevant results in an attempt to unify existing empirical observations and theoretical perspectives on attention scaling.
+However, scaling $n$ has been shown to be a non-trivial task. Among other reasons, the attention mechanism core to the Transformer is suceptible to degenerate behaviour in the large-$n$ limit, which leads to complete loss of expressive power of the model. Recent work has focused on improving the scaling behaviour of softmax attention by introducing an extra parameter, which can be found proposed in @nakanishi2025scalable. Empirically, various modifications have been shown to mitigate the effects of this collapsing attention (@velickovic2024softmax, @nakanishi2025scalable, @bai2023qwen), but mathematical justification has remained incomplete. Sections 3 to 6 summarize relevant recent results in an attempt to unify existing empirical observations and theoretical perspectives on attention scaling.
 
 = The Transformer
 
@@ -2356,7 +2349,7 @@ $
 $
 is the stationary distribution of the Markov chain. In other words, for a fixed $T$ and under standard assumptions on the transition mechanism, repeated application of the transition rule causes the distribution of visited states to converge to $p$. Thus, simulated annealing can be interpreted as a procedure for sampling from the Gibbs distribution at a given temperature.
 
-The defining feature of simulated annealing is the gradual reduction of the temperature parameter $t$. The temperature is therefore not held fixed, but is reduced according to a _cooling schedule_
+The defining feature of simulated annealing is the gradual reduction of the temperature parameter $T$. The temperature is therefore not held fixed, but is reduced according to a _cooling schedule_
 $T_0 > T_1 > T_2 > ... > T_K.$
 At each temperature $T_k$, the Markov chain is allowed to approach equilibrium before the temperature is lowered further. This creates a sequence of Gibbs distributions
 $p_1, ..., p_K$ that gradually shifts probability mass from exploration of the entire state space towards exploration of the lowest-energy configurations.
@@ -2373,10 +2366,30 @@ However, there is an important distinction from simulated annealing. Simulated a
 
 The question is therefore not whether attention directly implements or should implement simulated annealing, but whether the learned model parameters implicitly exhibit or benefit from a (not necessarily monotonic) temperature schedule that varies with either layer depth $l$ or context length $n$. 
 
+== Effective Scaling
 
-=== Role of Constants in $Lambda_n$
+Recall the learned parameters $W_Q$ and $W_K$ in the attention score calculation
 
-= Experiments on Scores
+$
+    S = 1/sqrt(d_k) X W_Q (X W_K)^T.
+$
+Assuming classical softmax with no explicit scaling, the model may implicitly learn a scaling $beta$ through the norms of the $W_Q$ and $W_K$ matrices, or potentially through earlier transformations such as the input embedding matrix. For example, scaling either matrix by a constant scales the attention scores by the same factor. Since the entire model is a parameterized system, this scaling is not necessarily represented by a single identifiable paramter in a pre-trained model. Even if the parameter $beta$ is included in the model and trained, the effective scaling of attention scores may still be controlled by earlier parameters if no explicit regularization is included. Furthermore, this is not limited to being a scalar, since different rows of the attention matrix differently by modifying the weights of the matrices. Thus, extracting a true underlying temperature for a fixed context length $n$ for a given attention head requires defining a reference frame and some compromise in aggregation.
+
+Up to shifting, softmax can be inverted to obtain scores $s_j = log(a_j)$
+
+#definition[
+    Given attention scores $s in RR^n$, define the effective scaling
+    $
+        beta_"eff" = Lambda^(-1)
+    $
+    where $Lambda$ is the corresponding upper tail accumulation scale of $s$. For some aggregated scale $overline(Lambda)$ over many individual scales $Lambda$, the corresponding effective scaling is $overline(Lambda)^(-1)$.
+]
+
+Assuming that the model keeps $Lambda^((r)) = 1$ in an unscaled reference state with scores $r_j$, and has scaled scores $beta_"eff" dot s_j$ according to some effective scaling, applying @proprescale gives that $beta_"eff" = 1\/Lambda^((s))$. This can also be interpreted as the ratio $r = beta_n\/Lambda$ with the actual value $beta = 1$, which has $r << 1$ and $r >> 1$ corresponding to "hot" high-entropy and "cool" low-energy states, respectively, and is the ratio investigated asymptotically in @scc. Other methods to define an effective scaling are possible, such as the standard deviation $sqrt("Var"(s))$ or the matrix norms $norm(W_q)$ or $norm(W_k)$, however these do not seem to appropriately capture the scaling effects.
+
+Noting that softmax can be inverted up to shifting to obtain gaps $Delta_j = - log(a_j)$, this metric allows $Lambda$ acts as an observable quantity that gives information on scaling beyond the theoretical quantification of collapse. This serves an important tool in interpreting the models temperature scheduling. We will also use $T_"eff" = beta_"eff"^(-1) = Lambda$ in order to draw parallels with simulated annealing.
+
+= Experiments on Pretrained Models
 
 The experiments in this section investigate the empirical behaviour of the theoretical quantities introduced in previous sections. We evaluate these quantities across four pretrained Transformer models: GPT-2 Medium and GPT-2 Large~@radford2019language, OPT-350M~@zhang2022opt, BLOOM-560M~@scao2022bloom, and BERT-Large~@devlin2019bert. The relevant architectural characteristics of these models are summarized in @modelsexp.
 The scope of the analysis was limited to these models due to the substantial computational requirements of attention-based analysis for larger architectures.
@@ -2441,7 +2454,7 @@ block(text(size: 9pt)[
       [P1], [Narrative], [The scientist walked into the laboratory and carefully examined...],
       [P2], [Factual], [The history of mathematics has developed through many...],
       [P3], [Repetition], [red blue green yellow red blue green yellow...],
-      [P4], [Logic], [Every A is a B. Every B is a C. Some C are D. Therefore,],
+      [P4], [Logic], [Every A is a B. Every B is a C. Some C are D. Therefore...],
       [P5], [Math], [If x equals 5 and y equals 10, then x plus y equals 15. The value of x...],
       [P6], [Code], [def factorial(n): if n == 0...],
       [P7], [Retrieval], [Alice visited a market and purchased apples, oranges...],
@@ -2458,39 +2471,17 @@ block(text(size: 9pt)[
 
 #set align(left)
 
-We will use the notation $Theta_(p, l, h, q)$ to refer to some observable quantity $Theta$ for prompt $p$, layer $l$, attention head $h$, and token query $q$. Models will be analyzed separately then compared unless otherwise stated.
+We will use the notation $Theta_(p, l, h, i)$ to refer to some observable quantity $Theta$ for prompt $p$ ($P$ total), layer $l$ ($L$ total), attention head $h$ ($H$ total), and token position $i$ ($n = n_p$ total). Models will be analyzed separately then compared unless otherwise stated.
 
-== Effective Scaling
-
-Recall the learned parameters $W_Q$ and $W_K$ in the attention score calculation
-
-$
-    S = 1/sqrt(d_k) X W_Q (X W_K)^T.
-$
-Assuming classical softmax with no explicit scaling, the model may implicitly learn a scaling $beta$ through the norms of the $W_Q$ and $W_K$ matrices, or potentially through earlier transformations such as the input embedding matrix. For example, scaling either matrix by a constant scales the attention scores by the same factor. Since the entire model is a parameterized system, this scaling is not necessarily represented by a single identifiable paramter in a pre-trained model. Even if the parameter $beta$ is included in the model and trained, the effective scaling of attention scores may still be controlled by earlier parameters if no explicit regularization is included. Furthermore, this is not limited to being a scalar, since different rows of the attention matrix differently by modifying the weights of the matrices. Thus, extracting a true underlying temperature for a fixed context length $n$ for a given attention head requires defining a reference frame and some compromise in aggregation.
-
-Up to shifting, softmax can be inverted to obtain scores $s_j = log(a_j)$
-
-#definition[
-    Given attention scores $s in RR^n$, define the effective scaling
-    $
-        beta_"eff" = Lambda^(-1)
-    $
-    where $Lambda$ is the corresponding upper tail accumulation scale of $s$. For some aggregated scale $overline(Lambda)$ over many individual scales $Lambda$, the corresponding effective scaling is $overline(Lambda)^(-1)$.
-]
-
-Assuming that the model keeps $Lambda^((r)) = 1$ in an unscaled reference state with scores $r_j$, and has scaled scores $beta_"eff" dot s_j$ according to some effective scaling, applying @proprescale gives that $beta_"eff" = 1\/Lambda^((s))$. This can also be interpreted as the ratio $r = beta_n\/Lambda$ with the actual value $beta = 1$, which has $r << 1$ and $r >> 1$ corresponding to "hot" high-entropy and "cool" low-energy states, respectively, and is the ratio investigated asymptotically in @scc. Other methods to define an effective scaling are possible, such as the standard deviation $sqrt("Var"(s))$ or the matrix norms $norm(W_q)$ or $norm(W_k)$, however these do not seem to appropriately capture the scaling effects.
-
-Noting that softmax can be inverted up to shifting to obtain gaps $Delta_j = - log(a_j)$, this metric allows $Lambda$ acts as an observable quantity that gives information on scaling beyond the theoretical quantification of collapse. This serves an important tool in interpreting the models temperature scheduling. We will also use $T_"eff" = beta_"eff"^(-1) = Lambda$ in order to draw parallels with simulated annealing.
 
 == Causal Models
 
-This section investigates the behaviour of $Lambda_(p, l, h, q)$ in the four causal (masked) models.
+This section investigates the behaviour of $Lambda_(p, l, h, i)$ in the four causal (masked) models.
 
 === Layer-wise $Lambda$ Scheduling
-We aggregate over prompts, layers, and queries to obtain the layer average
+We aggregate over prompts, layers, and positions to obtain the layer average
 $
-    Lambda_l =  1/(P H Q) sum_(p, h, q) Lambda_(p, l, h, q).
+    Lambda_l =  1/(P H) sum_(p, h) [1/n sum_i Lambda_(p, l, h, i)].
 $
 While this is suceptible to many oversmoothing because of averaging, it is a starting point in investigating this quantity.
 
@@ -2500,25 +2491,31 @@ While this is suceptible to many oversmoothing because of averaging, it is a sta
 )<lambdaavg>
 
 Interpreting $Lambda$ as $T_"eff"$, all four models qualitatively appear to exhibit a cooling process as depth increases.
-As a first observation, this suggests that this initial cooling phase is an important part of effective text-based causal transformer models. Theoretically, this means that if a model were to naively scale scores by their corresponding scales $Lambda^(-1)$ before applying standard softmax, in turn leading to scaled scores having $Lambda = 1$, then the effective cooling schedule would be constant and it is possible the model would underperform.
+As a first observation, this suggests that this initial cooling phase is an important part of effective text-based causal transformer models. Theoretically, this means that if a model were to naively scale scores by their corresponding scales $Lambda^(-1)$ before applying standard softmax, in turn leading to scaled scores having $Lambda = 1$, then the effective cooling schedule would be constant and it is possible the model would underperform. Indeed, it is important that $beta_n\/Lambda_n$ have a non-degenerate limit according to @scc, but these observations show that it is likely that the layer-wise constants that the quantity would converge to would matter.
 
 The two GPT models have roughly corresponding trajectories in terms of relative length of the apparent phases. Aside from the initial cooling, a particularly interesting phase is the "reheating" phase in the final few layers of the models. This is noticeably different to the final few layers in OPT-350M, but similar to the final layers of BLOOM-560M. The GPT models and OPT-350M are largely similar in architecture, but were trained on substantially different datasets, which may explain this difference. 
 
 === Input Prompt Dependence
 
-As shown in @lambdaavg, the three causal models have relatively small deviation from the mean across the 10 prompts. This suggests that the layer-wise evolution of Lambda is primarily a property of model architecture and depth rather than the specific input sequence. @lambdasbylayer plots the averaged $Lambda_(p, l)$ and shows that all prompts follow a roughly similar trajectory. Minor deviations in per-layer deviations such as those of prompt 3 could be explained by how the specific prompt (in this case, a repetitive sequence) interacts with a layer's learned dynamics.
+As shown in @lambdaavg, the three causal models have relatively small deviation from the mean across the 10 prompts. This suggests that the layer-wise evolution of Lambda is primarily a property of model architecture and depth rather than the specific input sequence. @lambdasbylayer plots the average
+$
+    Lambda_(p, l) = 1/(H) sum_(h) [1/n sum_i Lambda_(p, l, h, i)]
+$ 
+and shows that this quantity follows a roughly similar layer-wise trajectory for all prompts. Minor deviations in per-layer deviations such as those of prompt 3 could be explained by how the specific prompt (in this case, a repetitive sequence) interacts with a layer's learned dynamics.
 These deviations are neglible compared to the overwhelming trend of following the mean trajectory, but might be an interesting direction for future work.
 
 #figure(
     image("lambda-curves-all-models-2x2.pdf", width: 80%),
-    caption: [Mean $Lambda$ by layer and prompt.]
+    caption: [Mean $Lambda$ by layer and prompt.],
+    placement: auto
 )<lambdasbylayer>
 
 To quantify this similarity, we compute the pairwise correlation between each curve, shown in @lambdacorrelation. The correlations are consistently high across models, supporting the qualitative observation from @lambdasbylayer. This suggests that the evolution of $Lambda$ across layers is dominated by a common underlying signal that is largenly independent of the input.
 
 #figure(
     image("lambda_correlation_heatmaps.pdf", width: 100%),
-    caption: [Correlation matrix for layerwise $Lambda$ curves of prompts 1-10 on causal models.]
+    caption: [Correlation matrix for layerwise $Lambda$ curves of prompts 1-10 on causal models.],
+    placement: top
 )<lambdacorrelation>
 
 The remaining differences between trajectories can be interpreted as prompt-dependent deviations from this shared behaviour. Rather than being purely noise, these deviations may reflect the models differences in computation in response to different input structures. In this view, the common trajectory represents the general computational dynamics of the architecture, while the smaller variations capture input-specific effects.
@@ -2536,17 +2533,97 @@ Thus, the layer-wise dynamics of $Lambda$ seem generally robust, but slightly se
 
 ]
 
-=== Query Position Evolution
+=== Context Length Scaling
 
-For causal models, applying the causal mask to a score matrix $S$ produces a sequence of masked score vectors $s^((q))$, one for each query position $1 <= q <= n$. Since a query at position $q$ can only attend to tokens at positions $j <= q$, the corresponding score vector contains only the unmaksed entries from the first $q$ positions. Entries with $j > q$ have $s^((q))_j = -inf$, and therefore do not contribute to the resulting attention distribution. Although $s^((q))$ remains an $n$-dimensional vector in practice, its effective dimension is $q$, and hence can be treated as a score vector $s^((q)) in RR^q$ corresponding to a context of length $q$, i.e. the first $q$ tokens of the complete input sequence of length $n$.
+For causal models, applying the causal mask to a score matrix $S$ produces a sequence of masked score vectors $s^((i))$, one for each token position $1 <= i <= n$. Since a token at position $i$ can only attend to tokens at positions $j <= i$, the corresponding score vector contains only the unmaksed entries from the first $q$ positions. Entries with $j > q$ have $s^((i))_j = -inf$, and therefore do not contribute to the resulting attention distribution. Although $s^((i))$ remains an $n$-dimensional vector in practice, its effective dimension is $i$, and hence can be treated as a score vector $s^((i)) in RR^i$ corresponding to a context of length $i$, i.e. the first $i$ tokens of the complete input sequence of length $n$.
 
-Recall that by @scc, the asymptotic relationship of $Lambda_n$ with respect to context length $n$ 
+#figure(
+    image("evolutiongpt2p9.pdf"),
+    caption: [Mean $Lambda$ over Layer 15 Heads on Prompt 9, GPT-2 Medium.]
+)<lambdevol>
 
-While we do not have the resources to retrain large models
+Recall that by @scc, the asymptotic nature of $Lambda_n$ with respect to context length $n$ determines the order of the crticial scaling $beta_n$ needed to maintain stable attention. This causal masking allows to obtain a range of effective context lengths from a single forward pass, as seen in @lambdevol, allowing to infer on the "intrinsic" critical scaling $beta_n$, if it exists.
 
-=== Longer Context
+Analyses such as those reviewed in this report (@chen2025critical, @giorlandino2025failure, @hayase2026) assume and search for a single scaling $beta_n$ to apply globally to every head of the model. Furthermore, @hayase2026 perform experiments to determine this scaling $beta_n$ on both QWEN7B and nanoGPT (retrained with inserted parameters), under assumption that $beta_n$ is of asymptotic form $(log n)^xi$. They empirically determine that the exponent $xi$ depends on the model and setup, as the two models lead to substantially different resulting exponents. These experiments require more computational power than what we have available, so we will not attempt to replicate these searches or determine $xi$ for the models we are testing, as any results found will necessarily be weaker. Instead, we aim to answer the following questions:
 
-Test on longer contexts
+1. Does the relationship of $Lambda_i$ to token position $i$ follow a roughly poly-logarithmic scale as proposed by previous analyses? 
+2. Is the assumption of a single global scaling parameter reasonable, or do different attention components exhibit substantially different scaling behaviour across layers and heads?
+
+To better test the proposed relationship, we use longer-context prompts, summarized in @prompts2. We restrict the analysis to five English prompts of roughly 300 tokens to provide a controlled setting for examining the effect of context length. Given the apparent robustness of $Lambda$ to
+prompt variation observed in the previous section, prompt choice is treated primarily as a source of variation rather than the focus of this analysis, and we would expect similar results for any non-pathological prompts of comparable length.
+
+#set align(center)
+
+#figure(
+block(text(size: 9pt)[
+
+    #table(
+      columns: 3,
+      inset: 6pt,
+      align: left,
+      table.header(
+        [*ID*],
+        [*Type*],
+        [*Exerpt (First $approx$250 Tokens)*],
+      ),
+
+      [L1], [Encyclopedic], [Wikipedia page for Canada.],
+      [L2], [Literary], [_Alice's Adventures in Wonderland_.],
+      [L3], [Scientific], [_Attention is All You Need_.],
+      [L4], [Dramatic], [_Hamlet_.],
+      [L5], [Argumentative], [_The Federalist Papers_.],
+    )
+]),
+    caption: [Prompts used for this section.]
+)<prompts2>
+
+#set align(left)
+
+Given that the layer-wise $Lambda_l$ (prompt-averaged) appears to follow a model-dependent trajectory, we normalize each layer by its mean value to remove layer-dependent scale,
+
+$
+    hat(Lambda)_(l, i)  = (Lambda_(l, i)) / (1/n sum_i Lambda_(l, i)).
+$
+
+GAUSSIAN SMOOTHING
+
+#figure(
+    image("gpt2_large_lambda_normalization_stages.pdf"),
+    caption: [Normalization and smoothing on prompt-averaged $Lambda_(l, i)$, GPT2-Large.]
+)
+
+After this process, we fit the proposed scaling law $a (log i)^xi$ to the mean normalized and smoothed trajectory of each of the four models. The omission of additive or higher-order terms is intentional, as the goal is to characterize the dominant growth behaviour rather than maximize empirical fit. These fits are summarized in @fits. Although determining $xi$ precisely is not the objective of this test and the parameter is highly sensitive to noise,
+all four models exhibit a consistent poly-logarithmic trajectory. Thus, despite theoretical counter-examples such as that of @711, the observed behaviour provides evidence for a common $a (log i)^xi$ scaling behaviour in pretrained Transformers, or at least in text-based causal Transformers trained primarily on natural language.
+
+#figure(
+    image("log_power_fits_all_models.pdf", width: 80%),
+    caption: [TODO]
+)<fits>
+
+
+- scaling a 
+
+#conjecture[
+
+]
+- Conjecture Xi global, let scaling determined layer-wise. see if theres a way to measure this or justify this.
+
+=== Summary and Application
+
+- Why is not just scaling by computed lambda always good
+- Prompt Robustness for mean Lambda
+- Scaling: choose log xi class but allow for learning of the scaling parameter (might already be there bc of layernorm or something)
+
+
+
+== Training Dynamics
+
+- Evolution of Lambda landscape
+- At initialization know roughly that still context scaling, interesting that grows layer-wise
+
+
+== Bidirectional Attention
+
 
 == Comparison with Other Metrics
 
@@ -2554,16 +2631,17 @@ For consistency, it is important to verify that this measure of effective scalin
 
 Why is Lambda so much smoother?
 
-=== BERT
+Score distribution
 
-=== Training Dynamics
-
-
-= Discussion
+= Conclusion
 
 == Alternatives to Softmax
 - Top x: issue doesn't scale well
 - Sparsemax?
+- Linformer?
+
+== Practical Implications
+- No logn vs some logn with xi error vs simple log n
 
 #pagebreak()
 #bibliography("citations.bib", title: "References")
